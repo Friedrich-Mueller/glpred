@@ -1,0 +1,21 @@
+# Python & Jupyter
+#__pycache__/
+#*.py[cod]
+.ipynb_checkpoints/
+#.venv/
+#env/
+
+# Local Data & Telemetry (Never commit personal medical data)
+*.db
+#*.sqlite
+*.csv
+#data/raw/
+
+# Android / Gradle
+#.gradle/
+#/build/
+#app/build/
+#local.properties
+.idea/
+#*.iml
+#.DS_Store
