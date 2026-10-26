@@ -12,10 +12,11 @@
 #data/raw/
 
 # Android / Gradle
-#.gradle/
-#/build/
+.gradle/
+/build/
 #app/build/
 #local.properties
 .idea/
 #*.iml
 #.DS_Store
+deprecated/
