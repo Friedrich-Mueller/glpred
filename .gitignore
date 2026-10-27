@@ -14,7 +14,7 @@
 # Android / Gradle
 .gradle/
 /build/
-#app/build/
+app/build/
 local.properties
 .idea/
 #*.iml

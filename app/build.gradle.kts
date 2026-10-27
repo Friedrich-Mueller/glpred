@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.devtools.ksp") version "2.3.6" // KSP for Room
+    id("com.google.devtools.ksp") version "2.0.21-1.0.27" // KSP for Room
 }
 
 android {
@@ -23,6 +23,10 @@ android {
 }
 
 dependencies {
+    // AndroidX Core & Activity
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-compose:1.9.3")
+
     // Room Database
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
