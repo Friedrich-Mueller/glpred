@@ -44,6 +44,7 @@ dependencies {
 
     // ViewModel & Lifecycle for Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.navigation:navigation-compose:2.8.5")
 
     // Jetpack Compose Foundation & UI
     implementation(platform(libs.androidx.compose.bom))
