@@ -41,17 +41,18 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun EnterDataScreen(
     viewModel: DiaryViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToConfirm: () -> Unit
 ) {
     val context = LocalContext.current
 
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedTime by remember { mutableStateOf(LocalTime.now()) }
 
-    var glucoseStr by remember { mutableStateOf("") }
-    var carbsStr by remember { mutableStateOf("") }
-    var bolusStr by remember { mutableStateOf("") }
-    var basisStr by remember { mutableStateOf("") }
+    var glucoseStr by remember { mutableStateOf(viewModel.tempGlucose) }
+    var carbsStr by remember { mutableStateOf(viewModel.tempCarbs) }
+    var bolusStr by remember { mutableStateOf(viewModel.tempBolus) }
+    var basisStr by remember { mutableStateOf(viewModel.tempBasis) }
 
     val formattedDate = remember(selectedDate) {
         selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
@@ -165,15 +166,16 @@ fun EnterDataScreen(
                     val localDateTime = LocalDateTime.of(selectedDate, selectedTime)
                     val epochMillis = localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-                    viewModel.saveEntry(
+                    viewModel.validateAndStoreTemp(
+                        date = formattedDate,
+                        time = formattedTime,
                         glucoseStr = glucoseStr,
                         carbsStr = carbsStr,
                         bolusStr = bolusStr,
                         basisStr = basisStr,
                         timestamp = epochMillis,
-                        onSuccess = {
-                            Toast.makeText(context, "Data Inserted", Toast.LENGTH_SHORT).show()
-                            onNavigateBack()
+                        onValid = {
+                            onNavigateToConfirm()
                         },
                         onError = { errorMsg ->
                             Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
@@ -182,7 +184,7 @@ fun EnterDataScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Confirm & Save Data")
+                Text("Review Entry")
             }
         }
     }
