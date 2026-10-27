@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.glpred.ui.ConfirmDataScreen
 import com.example.glpred.ui.DiaryViewModel
 import com.example.glpred.ui.EnterDataScreen
 
@@ -42,7 +43,19 @@ class MainActivity : ComponentActivity() {
                 composable("enter_data") {
                     EnterDataScreen(
                         viewModel = viewModel,
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToConfirm = { navController.navigate("confirm_data") }
+                    )
+                }
+                composable("confirm_data") {
+                    ConfirmDataScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() },
+                        onSaveSuccess = {
+                            navController.navigate("main") {
+                                popUpTo("main") { inclusive = true }
+                            }
+                        }
                     )
                 }
             }
