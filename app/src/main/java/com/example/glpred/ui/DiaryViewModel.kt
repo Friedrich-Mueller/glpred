@@ -26,7 +26,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         carbsStr: String,
         bolusStr: String,
         basisStr: String,
-        timestamp: Long = System.currentTimeMillis(),
+        timestamp: Long,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
