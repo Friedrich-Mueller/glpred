@@ -30,16 +30,16 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
+        // Validation: Every single field must be filled
+        if (glucoseStr.isBlank() || carbsStr.isBlank() || bolusStr.isBlank() || basisStr.isBlank()) {
+            onError("Please fill in every single field (Glucose, Carbs, Bolus, and Basis).")
+            return
+        }
+
         val glucose = glucoseStr.toIntOrNull() ?: 0
         val carbs = carbsStr.toFloatOrNull() ?: 0.0f
         val bolus = bolusStr.toIntOrNull() ?: 0
         val basis = basisStr.toIntOrNull() ?: 0
-
-        // Validation: At least one input field must be filled/non-zero
-        if (glucose == 0 && carbs == 0.0f && bolus == 0 && basis == 0) {
-            onError("At least one entry value (Glucose, Carbs, Bolus, or Basis) is required.")
-            return
-        }
 
         viewModelScope.launch {
             val entity = DiaryEntity(
