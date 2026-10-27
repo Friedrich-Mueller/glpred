@@ -15,20 +15,37 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.glpred.ui.DiaryViewModel
+import com.example.glpred.ui.EnterDataScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MainScreen(
-                onNewEntryClick = {
-                    // TODO: Navigate to Enter Data screen
-                },
-                onFetchDataClick = {
-                    // TODO: Navigate to Fetch Data screen
+            val navController = rememberNavController()
+            val viewModel: DiaryViewModel = viewModel()
+
+            NavHost(navController = navController, startDestination = "main") {
+                composable("main") {
+                    MainScreen(
+                        onNewEntryClick = { navController.navigate("enter_data") },
+                        onFetchDataClick = {
+                            // TODO: Open Fetch Data screen
+                        }
+                    )
                 }
-            )
+                composable("enter_data") {
+                    EnterDataScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+            }
         }
     }
 }
