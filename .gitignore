@@ -15,7 +15,7 @@
 .gradle/
 /build/
 #app/build/
-#local.properties
+local.properties
 .idea/
 #*.iml
 #.DS_Store
