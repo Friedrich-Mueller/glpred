@@ -51,7 +51,4 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
-
-    // CSV Reader Library
-    implementation("com.github.doyounkoo:kotlin-csv-jvm:1.9.3")
 }
