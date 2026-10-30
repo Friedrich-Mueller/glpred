@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.glpred.data.AppDatabase
+import com.example.glpred.data.DiaryDatabase
 import com.example.glpred.data.DiaryEntity
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 
 class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val diaryDao = AppDatabase.getDatabase(application).diaryDao()
+    private val diaryDao = DiaryDatabase.getDatabase(application).diaryDao()
 
     val allEntries: StateFlow<List<DiaryEntity>> = diaryDao.getAllEntries()
         .stateIn(

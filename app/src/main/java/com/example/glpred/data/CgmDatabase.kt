@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 /**
  * Database for the imported CGM data, deliberately separate from the diary database
- * ([AppDatabase]): the CGM export is a large, replaceable table that is re-imported as a whole,
+ * ([DiaryDatabase]): the CGM export is a large, replaceable table that is re-imported as a whole,
  * while the diary entries are written one by one by the user.
  */
 @Database(entities = [CgmReadingEntity::class], version = 5, exportSchema = false)
