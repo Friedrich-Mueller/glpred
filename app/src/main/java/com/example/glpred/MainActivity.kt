@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.glpred.ui.ConfirmDataScreen
 import com.example.glpred.ui.DiaryViewModel
 import com.example.glpred.ui.EnterDataScreen
+import com.example.glpred.ui.FetchDataScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,9 +36,7 @@ class MainActivity : ComponentActivity() {
                 composable("main") {
                     MainScreen(
                         onNewEntryClick = { navController.navigate("enter_data") },
-                        onFetchDataClick = {
-                            // TODO: Open Fetch Data screen
-                        }
+                        onFetchDataClick = { navController.navigate("fetch_data") }
                     )
                 }
                 composable("enter_data") {
@@ -56,6 +55,11 @@ class MainActivity : ComponentActivity() {
                                 popUpTo("main") { inclusive = true }
                             }
                         }
+                    )
+                }
+                composable("fetch_data") {
+                    FetchDataScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }
