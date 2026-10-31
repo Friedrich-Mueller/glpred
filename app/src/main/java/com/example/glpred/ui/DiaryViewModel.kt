@@ -6,12 +6,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.glpred.data.CgmDatabase
 import com.example.glpred.data.DiaryDatabase
 import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
 import com.example.glpred.prediction.ModelDoseAdvisor
+import com.example.glpred.prediction.TrainingResult
+import com.example.glpred.prediction.TrainingRunner
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -160,6 +163,48 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
             onSuccess()
+        }
+    }
+
+    // ---------------------------------------------------------------- training
+
+    private val trainingRunner = TrainingRunner(
+        diaryDao = diaryDao,
+        cgmDao = CgmDatabase.getDatabase(application).cgmDao(),
+        modelDao = database.trainedModelDao()
+    )
+
+    var isTraining by mutableStateOf(false)
+        private set
+
+    var trainingResult by mutableStateOf<TrainingResult?>(null)
+        private set
+
+    /**
+     * One line the main screen shows verbatim. Refusals are phrased as the next action, because
+     * "re-import your export" and "record more meals" are different instructions.
+     */
+    val trainingStatus: String
+        get() = when (val result = trainingResult) {
+            null -> "Model: not trained yet"
+            is TrainingResult.NoEntries -> "Model: no diary entries yet - record a meal first"
+            is TrainingResult.NoLabelledSamples ->
+                "Model: ${result.entries} entries, none labelled yet - re-import your CGM export " +
+                    "so the 4 h values exist"
+            is TrainingResult.TooFewSamples ->
+                "Model: ${result.labelled} of ${result.required} labelled entries - record more meals"
+            is TrainingResult.Failed -> "Model: training failed - ${result.reason}"
+            is TrainingResult.Trained ->
+                "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL" +
+                    (result.samples3h?.let { ", 3 h fit on $it samples" } ?: ", no 3 h fit")
+        }
+
+    fun trainModel() {
+        if (isTraining) return
+        isTraining = true
+        viewModelScope.launch {
+            trainingResult = trainingRunner.train()
+            isTraining = false
         }
     }
 }

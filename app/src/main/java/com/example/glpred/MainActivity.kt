@@ -37,7 +37,10 @@ class MainActivity : ComponentActivity() {
                 composable("main") {
                     MainScreen(
                         onNewEntryClick = { navController.navigate("enter_data") },
-                        onFetchDataClick = { navController.navigate("fetch_data") }
+                        onFetchDataClick = { navController.navigate("fetch_data") },
+                        trainingStatus = viewModel.trainingStatus,
+                        isTraining = viewModel.isTraining,
+                        onTrainClick = { viewModel.trainModel() }
                     )
                 }
                 composable("enter_data") {
@@ -78,7 +81,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     onNewEntryClick: () -> Unit,
-    onFetchDataClick: () -> Unit
+    onFetchDataClick: () -> Unit,
+    trainingStatus: String,
+    isTraining: Boolean,
+    onTrainClick: () -> Unit
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -96,10 +102,21 @@ fun MainScreen(
             }
 
             Button(
-                onClick = onFetchDataClick
+                onClick = onFetchDataClick,
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
                 Text(text = "Fetch Data")
             }
+
+            Button(
+                onClick = onTrainClick,
+                enabled = !isTraining,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text(text = if (isTraining) "Training..." else "Train Model")
+            }
+
+            Text(text = trainingStatus)
         }
     }
 }
