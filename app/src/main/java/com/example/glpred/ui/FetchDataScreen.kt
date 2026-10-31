@@ -26,6 +26,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -97,6 +101,31 @@ fun FetchDataScreen(
                 )
             }
 
+            viewModel.storedSpan?.let { span ->
+                val first = span.firstMs
+                val last = span.lastMs
+                if (first != null && last != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "Stored CGM data:",
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "From ${formatWallClock(first)}",
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "To ${formatWallClock(last)}",
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = String.format(Locale.US, "%,d readings", span.readings),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
             viewModel.errorMessage?.let { errorMessage ->
                 Text(
                     text = errorMessage,
@@ -108,3 +137,11 @@ fun FetchDataScreen(
         }
     }
 }
+
+/**
+ * The CGM table stores wall-clock time encoded as UTC millis, so it must be rendered in UTC.
+ * Formatting with the device zone would shift the reported span by the current UTC offset.
+ */
+private fun formatWallClock(epochMs: Long): String = DateTimeFormatter
+    .ofPattern("dd.MM.yyyy HH:mm", Locale.US)
+    .format(LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMs), ZoneOffset.UTC))

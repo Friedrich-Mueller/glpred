@@ -12,6 +12,7 @@ import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteStatement
 import com.example.glpred.data.CgmCsvLoader
 import com.example.glpred.data.CgmDatabase
+import com.example.glpred.data.CgmSpan
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,6 +54,20 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
 
     var errorMessage by mutableStateOf<String?>(null)
         private set
+
+    /** Span currently in the table, so the screen reports stored data rather than a past import. */
+    var storedSpan by mutableStateOf<CgmSpan?>(null)
+        private set
+
+    init {
+        refreshStoredSpan()
+    }
+
+    private fun refreshStoredSpan() {
+        viewModelScope.launch {
+            storedSpan = withContext(Dispatchers.IO) { cgmDao.storedSpan() }
+        }
+    }
 
     /**
      * Reads raw CSV file off the main thread and replaces stored CGM telemetry in SQLite in sub-second time.
@@ -130,6 +145,8 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
                 onSuccess = { count ->
                     importedCount = count
                     importSuccess = true
+                    // The table was just replaced: the summary must reflect the new span.
+                    refreshStoredSpan()
                 },
                 onFailure = {
                     errorMessage = "Import failed: ${it.message}"
