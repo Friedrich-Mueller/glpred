@@ -13,8 +13,10 @@ import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
 import com.example.glpred.prediction.ModelDoseAdvisor
+import com.example.glpred.prediction.PredictionCoverage
 import com.example.glpred.prediction.TrainingResult
 import com.example.glpred.prediction.TrainingRunner
+import com.example.glpred.preprocessing.TrainingSample
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -33,6 +35,29 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Reads the stored model; reports Unavailable until one has been trained. */
     private val doseAdvisor: DoseAdvisor = ModelDoseAdvisor(database.trainedModelDao())
+
+    init {
+        restoreStoredModel()
+    }
+
+    /**
+     * The model survives the process, so the status line must not claim otherwise: without this the
+     * screen said "not trained yet" after every restart while the advisor went on using the model.
+     */
+    private fun restoreStoredModel() {
+        viewModelScope.launch {
+            val stored = database.trainedModelDao().get() ?: return@launch
+            trainingResult = TrainingResult.Trained(
+                entries = 0, // not persisted; the sample counts are what matter for the status line
+                samples4h = stored.samples4h,
+                samples3h = stored.samples3h,
+                rmse4h = stored.rmse4h,
+                rmse3h = stored.rmse3h,
+                trainedAt = stored.trainedAt,
+                restoredAtStartup = true
+            )
+        }
+    }
 
     val allEntries: StateFlow<List<DiaryEntity>> = diaryDao.getAllEntries()
         .stateIn(
@@ -120,11 +145,31 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 carbs = carbs,
                 basis = basis
             )
-            recommendation = runCatching { doseAdvisor.recommend(input) }
+            val base = runCatching { doseAdvisor.recommend(input) }
                 .getOrElse { DoseRecommendation.Unavailable("Prediction failed: ${it.message}") }
+            recommendation = withCoverageWarning(base, timestamp)
             isPredicting = false
             onReady()
         }
+    }
+
+    /**
+     * Phase-5 guard. The time interactions are linear in sin/cos, so at an hour where no meal was
+     * ever recorded the model still returns a confident number - an extrapolation presented as an
+     * estimate. The suggestion is kept, because a withheld prediction teaches nothing, and flagged.
+     */
+    private fun withCoverageWarning(
+        recommendation: DoseRecommendation,
+        timestampMs: Long
+    ): DoseRecommendation {
+        if (recommendation !is DoseRecommendation.Available) return recommendation
+        val covered = PredictionCoverage.load(getApplication()) ?: return recommendation
+        val minuteOfDay = TrainingSample.minuteOfDay(timestampMs)
+        if (PredictionCoverage.isCovered(covered, minuteOfDay)) return recommendation
+        return recommendation.copy(
+            coverageWarning = "No recorded meal within an hour of this time of day. " +
+                "The prediction is an extrapolation - treat it with extra caution."
+        )
     }
 
     fun setActualBolus(value: String) {
@@ -196,12 +241,16 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             is TrainingResult.Failed -> "Model: training failed - ${result.reason}"
             is TrainingResult.Trained -> {
                 val validation = result.looRmse4h
-                if (validation != null) {
-                    "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
-                        "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
-                } else {
-                    "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
-                        "- validation needs one more labelled entry"
+                when {
+                    validation != null ->
+                        "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
+                            "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
+                    result.restoredAtStartup ->
+                        "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
+                            "(restored after restart - press Train to recompute validation)"
+                    else ->
+                        "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
+                            "- validation needs one more labelled entry"
                 }
             }
         }
@@ -210,7 +259,13 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         if (isTraining) return
         isTraining = true
         viewModelScope.launch {
-            trainingResult = trainingRunner.train()
+            val result = trainingRunner.train()
+            trainingResult = result
+            // Coverage is only known at fit time and is not part of the model row, so it is kept
+            // beside the model in preferences for the out-of-distribution guard.
+            (result as? TrainingResult.Trained)?.let { trained ->
+                PredictionCoverage.save(getApplication(), trained.coveredHours)
+            }
             isTraining = false
         }
     }

@@ -146,8 +146,25 @@ fun ConfirmDataScreen(
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
+
+                            // Phase-5 guard: an extrapolation has to say so, whatever it suggests.
+                            recommendation.coverageWarning?.let { warning ->
+                                Text(
+                                    text = warning,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
+
+                    // Always visible, whatever the model claims.
+                    Text(
+                        text = "Not medical advice. This is an experiment on your own data, its " +
+                            "accuracy is unproven - verify every dose yourself.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

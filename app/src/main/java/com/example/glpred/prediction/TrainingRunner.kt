@@ -41,7 +41,14 @@ sealed interface TrainingResult {
         /** Leave-one-out error: the number that may be shown as "accuracy". Null when too few rows. */
         val looRmse4h: Double? = null,
         val looFolds4h: Int = 0,
-        val looRmse3h: Double? = null
+        val looRmse3h: Double? = null,
+        /** Hours of the day that the training rows cover; see [PredictionCoverage]. */
+        val coveredHours: Set<Int> = emptySet(),
+        /**
+         * True when this describes a model read back from storage rather than a fit made just now.
+         * The LOO figure is not persisted, so a restored model has none until it is retrained.
+         */
+        val restoredAtStartup: Boolean = false
     ) : TrainingResult
 
     data class Failed(val reason: String) : TrainingResult
@@ -109,7 +116,8 @@ class TrainingRunner(
             trainedAt = trainedAt,
             looRmse4h = loo4h?.rmse,
             looFolds4h = loo4h?.folds ?: 0,
-            looRmse3h = loo3h?.rmse
+            looRmse3h = loo3h?.rmse,
+            coveredHours = PredictionCoverage.hoursFrom(samples)
         )
     }
 }
