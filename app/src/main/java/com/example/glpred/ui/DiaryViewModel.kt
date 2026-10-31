@@ -11,7 +11,7 @@ import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
-import com.example.glpred.prediction.UnavailableDoseAdvisor
+import com.example.glpred.prediction.ModelDoseAdvisor
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -25,14 +25,11 @@ import kotlinx.coroutines.launch
  */
 class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val diaryDao = DiaryDatabase.getDatabase(application).diaryDao()
+    private val database = DiaryDatabase.getDatabase(application)
+    private val diaryDao = database.diaryDao()
 
-    /**
-     * Swapped for the trained model once the pipeline exists (PLAN.md phases 2-3). A property
-     * rather than a constructor argument, so `viewModel()` can still construct this type with
-     * nothing but the Application.
-     */
-    private val doseAdvisor: DoseAdvisor = UnavailableDoseAdvisor
+    /** Reads the stored model; reports Unavailable until one has been trained. */
+    private val doseAdvisor: DoseAdvisor = ModelDoseAdvisor(database.trainedModelDao())
 
     val allEntries: StateFlow<List<DiaryEntity>> = diaryDao.getAllEntries()
         .stateIn(

@@ -38,6 +38,11 @@ class RidgeModel(
 
     val featureCount: Int get() = means.size
 
+    /** Standardisation stats, persisted with the coefficients so the model can be reapplied. */
+    val featureMeans: DoubleArray get() = means.copyOf()
+
+    val featureScales: DoubleArray get() = scales.copyOf()
+
     fun predict4h(features: DoubleArray): Double = model4h.predict(standardise(features))
 
     /** Null when the 3 h target had too few samples to fit. */
