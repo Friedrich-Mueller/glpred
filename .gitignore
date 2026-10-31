@@ -21,6 +21,7 @@ local.properties
 #.DS_Store
 deprecated/
 
-# Hermes
+# Hermes/Agent
 IDEA.md
 AGENTS.md
+PLAN.md
