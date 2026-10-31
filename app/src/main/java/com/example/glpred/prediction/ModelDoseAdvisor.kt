@@ -46,11 +46,17 @@ class ModelDoseAdvisor(
 
         val selection = DoseSweep.run(features, model::predict4h)
 
+        // The 3 h value at the suggested dose is context for the user - selection above is 4 h only.
+        val atSuggestion = features.copyOf()
+        atSuggestion[2] = selection.units // bolus; same feature index the sweep replaces
+        val predicted3h = model.predict3h(atSuggestion)
+
         return DoseRecommendation.Available(
             suggestedUnits = selection.units,
             predictedGlucoseMgDl = selection.predictedGlucoseMgDl,
             inRange = selection.inRange,
-            curve = selection.curve
+            curve = selection.curve,
+            predictedGlucose3hMgDl = predicted3h
         )
     }
 }

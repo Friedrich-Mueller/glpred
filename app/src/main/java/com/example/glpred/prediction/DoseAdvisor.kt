@@ -49,7 +49,9 @@ sealed interface DoseRecommendation {
         val suggestedUnits: Double,
         val predictedGlucoseMgDl: Double,
         val inRange: Boolean,
-        val curve: List<DosePoint>
+        val curve: List<DosePoint>,
+        /** Secondary 3 h signal, shown for context; selection never uses it. */
+        val predictedGlucose3hMgDl: Double? = null
     ) : DoseRecommendation
 
     /** No model, no training data, or too little to be trusted. */

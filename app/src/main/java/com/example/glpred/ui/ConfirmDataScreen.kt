@@ -122,9 +122,15 @@ fun ConfirmDataScreen(
                                     value = "${formatUnits(recommendation.suggestedUnits)} units"
                                 )
                                 SummaryRow(
-                                    label = "Predicted glucose after 3 h:",
+                                    label = "Predicted glucose after 4 h (primary):",
                                     value = "${recommendation.predictedGlucoseMgDl.toInt()} mg/dL"
                                 )
+                                recommendation.predictedGlucose3hMgDl?.let { threeHour ->
+                                    SummaryRow(
+                                        label = "Predicted glucose after 3 h:",
+                                        value = "${threeHour.toInt()} mg/dL"
+                                    )
+                                }
                             } else {
                                 Text(
                                     text = "No dose brings you into 90-140 mg/dL",
