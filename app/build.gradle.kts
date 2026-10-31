@@ -51,4 +51,7 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.material3)
+
+    // Local JVM unit tests (preprocessing, label generation, model math)
+    testImplementation("junit:junit:4.13.2")
 }
