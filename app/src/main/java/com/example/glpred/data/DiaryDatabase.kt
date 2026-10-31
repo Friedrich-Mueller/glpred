@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [DiaryEntity::class], version = 1, exportSchema = false)
+@Database(entities = [DiaryEntity::class], version = 2, exportSchema = false)
 abstract class DiaryDatabase : RoomDatabase() {
     abstract fun diaryDao(): DiaryDao
 
@@ -19,7 +19,11 @@ abstract class DiaryDatabase : RoomDatabase() {
                     context.applicationContext,
                     DiaryDatabase::class.java,
                     "diary.db"
-                ).build()
+                )
+                    // Development only: a schema change drops the diary instead of migrating it.
+                    // Replace with real migrations once entries are worth preserving across updates.
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

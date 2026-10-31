@@ -13,8 +13,12 @@ data class DiaryEntity(
     val timestamp: Long,    // Epoch timestamp in milliseconds
     val glucose: Int,       // Blood glucose level (mg/dL)
     val carbs: Float,       // Carbohydrates consumed
-    val bolus: Int,         // Short-acting insulin injected
-    val basis: Int          // Long-acting insulin injected
+    val bolus: Double,      // Short-acting insulin actually injected (fractional for 0.5-unit pens)
+    val basis: Int,         // Long-acting insulin injected
+    // What the advisor suggested for this entry, kept so the suggestion can later be judged
+    // against the dose that was actually taken. Null when no model was available.
+    val suggestedBolus: Double? = null,
+    val predictedGlucose: Double? = null
 ) {
     private val localDateTime: LocalDateTime
         get() = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault())

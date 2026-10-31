@@ -23,6 +23,7 @@ import com.example.glpred.ui.ConfirmDataScreen
 import com.example.glpred.ui.DiaryViewModel
 import com.example.glpred.ui.EnterDataScreen
 import com.example.glpred.ui.FetchDataScreen
+import com.example.glpred.ui.FinalConfirmScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +49,13 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("confirm_data") {
                     ConfirmDataScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToFinal = { navController.navigate("final_confirm") }
+                    )
+                }
+                composable("final_confirm") {
+                    FinalConfirmScreen(
                         viewModel = viewModel,
                         onNavigateBack = { navController.popBackStack() },
                         onSaveSuccess = {

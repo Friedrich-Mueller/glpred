@@ -51,7 +51,6 @@ fun EnterDataScreen(
 
     var glucoseStr by remember { mutableStateOf(viewModel.tempGlucose) }
     var carbsStr by remember { mutableStateOf(viewModel.tempCarbs) }
-    var bolusStr by remember { mutableStateOf(viewModel.tempBolus) }
     var basisStr by remember { mutableStateOf(viewModel.tempBasis) }
 
     val formattedDate = remember(selectedDate) {
@@ -144,14 +143,6 @@ fun EnterDataScreen(
             )
 
             OutlinedTextField(
-                value = bolusStr,
-                onValueChange = { bolusStr = it },
-                label = { Text("Bolus (Short-Acting Insulin)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
                 value = basisStr,
                 onValueChange = { basisStr = it },
                 label = { Text("Basis (Long-Acting Insulin)") },
@@ -166,15 +157,15 @@ fun EnterDataScreen(
                     val localDateTime = LocalDateTime.of(selectedDate, selectedTime)
                     val epochMillis = localDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-                    viewModel.validateAndStoreTemp(
+                    // Runs the advisor, then navigates - the review screen shows its result at once.
+                    viewModel.validateAndStartReview(
                         date = formattedDate,
                         time = formattedTime,
                         glucoseStr = glucoseStr,
                         carbsStr = carbsStr,
-                        bolusStr = bolusStr,
                         basisStr = basisStr,
                         timestamp = epochMillis,
-                        onValid = {
+                        onReady = {
                             onNavigateToConfirm()
                         },
                         onError = { errorMsg ->
