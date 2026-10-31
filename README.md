@@ -72,14 +72,21 @@ than a bug — it means your ratio does not vary enough to be resolved yet. Desi
 |---|---|
 | Diary entry and persistence | done |
 | CGM CSV import (≈280k rows in ≈0.6 s) | done |
+| Stored-data summary (span from/to, row count) | done |
 | Preprocessing: minute series, DST handling, interpolation | done |
 | 3 h and 4 h labels | done |
-| Ridge model, persistence, dose sweep | done |
+| Ridge model with time-interacted factors, persistence, dose sweep | done |
 | Entry flow: enter → review + prediction → final confirm | done |
-| Train action and model status in the UI | in progress |
-| History list, settings | not started |
-| Time-interacted factors (per-time carb ratio) | done |
-| Unit tests | 18, covering loader parity, preprocessing, model math, LOO, time interactions, pipeline |
+| Train action, model status, model restored after restart | done |
+| Honest accuracy figure (leave-one-out) | done |
+| Time-coverage warning for unobserved hours + in-app disclaimer | done |
+| History list | not started |
+| Settings (target band, horizon) | deliberately dropped for v1 |
+| Unit tests | 23, covering loader parity, preprocessing, model math, LOO, coverage, time interactions, pipeline |
+
+Everything under "How it works" runs end to end. What is missing is the history view: a list of past
+meals showing which ones are pending versus labelled, what the model suggested next to what you
+injected, and the predicted 4 h value next to the one that actually happened.
 
 ## Project layout
 
