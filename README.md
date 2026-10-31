@@ -10,4 +10,112 @@ I came up with its idea and proof of concept around 2020 already, but technical 
 
 Since I was bothered by the unfinished state for years, I decided to finish it in 2026, regardless.
 
+---
+
+> **It is a personal experiment, not a medical device.** It does not replace on-the-fly correction
+> dosing with a CGM, and nobody should make an insulin decision on its output alone.
+
+## How it works
+
+1. **Record a meal** — date, time, blood glucose, carb units, long-acting insulin. No short-acting
+   dose yet.
+2. **Re-import your CGM export** — download the CSV from libreview and import it. That is the only
+   way CGM data enters the app.
+3. **Labels mature** — an entry becomes a training row once the imported CGM covers the moment
+   *4 hours after* it. Until then it is pending, which is normal rather than a failure.
+4. **Train** — the app fits a small regression model on all labelled entries.
+5. **Predict** — for a new meal it sweeps short-acting doses from 1 to 25 units and suggests the one
+   whose predicted 4-hour glucose is closest to 90 mg/dL. The acceptable band is 90–140. If no dose
+   reaches the band it says so instead of pretending.
+6. **Record what you actually injected** — the suggestion is stored next to it, so the model can
+   later be judged against your own judgement.
+
+The loop only advances when steps 1, 2 and 4 happen. A week of meals with no CGM import produces no
+training data at all.
+
+## What makes an entry useful
+
+- **At least 4 hours between meals.** The 4-hour label is clean only if no second meal happened
+  inside that window; closer meals mix two meals into one label.
+- **Vary the amounts.** Entries that always use the same carbs and the same dose teach the model
+  nothing — it needs to see what changed when the meal or the dose changed.
+- **Eat at different times of day.** The model estimates how insulin need varies across the day, so
+  it needs meals spread over the day. There is no requirement to eat at fixed times.
+- **Import regularly.** Labels come from the CGM export, so an un-imported week is an untrainable
+  week.
+
+## The model
+
+A **ridge regression**, solved in closed form inside the app — no framework, no model file, no
+runtime dependency. Features: starting glucose, carbs, dose, long-acting insulin, and time of day
+encoded as a point on a 24-hour circle (`sin`/`cos`).
+
+Why not something bigger: with tens of rows a forest or a neural net fits noise and reports it as
+insight, tree-based models answer counterfactual dose questions with a flat constant, and a linear
+model is guaranteed to predict *less* glucose for *more* insulin across the whole sweep. The reported
+error is **in-sample** and therefore optimistic — a rough scale, not a validation score.
+
+Known limitation: with the current feature set the carb-to-insulin ratio is the same all day. The
+planned upgrade (time-interacted factors, judged by leave-one-out error) is described in
+[PLAN.md](PLAN.md).
+
+## Status
+
+| Area | State |
+|---|---|
+| Diary entry and persistence | done |
+| CGM CSV import (≈280k rows in ≈0.6 s) | done |
+| Preprocessing: minute series, DST handling, interpolation | done |
+| 3 h and 4 h labels | done |
+| Ridge model, persistence, dose sweep | done |
+| Entry flow: enter → review + prediction → final confirm | done |
+| Train action and model status in the UI | in progress |
+| History list, settings | not started |
+| Time-interacted factors (per-time carb ratio) | not started, gated on data |
+| Unit tests | 12, covering loader parity, preprocessing, model math, pipeline |
+
+## Project layout
+
+```
+app/src/main/java/com/example/glpred/
+  data/           Room entities, DAOs and both databases (diary.db, cgm.db)
+  preprocessing/  minute series from raw CGM, labels, training samples
+  prediction/     dose contract, ridge model, training runner, dose sweep
+  ui/             Compose screens and the ViewModel driving the entry flow
+app/src/test/     JVM unit tests
+IDEA.md           product case and its feasibility limits
+PLAN.md           engineering plan, decisions, traps, session notes
+AGENTS.md         working rules for this repository
+glpred_prototype/ the original notebook and the export it reads
+```
+
+Two databases on purpose: `diary.db` holds hand-entered meals (schema v3), `cgm.db` holds the
+imported CGM table and is rebuilt wholesale on every import.
+
+## Building and running
+
+```bash
+export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"   # gradlew needs a JDK
+./gradlew assembleDebug
+./gradlew installDebug
+```
+
+## Tests
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+The parity test reads `glpred_prototype/MaxMustermann_glucose_20-10-2026.csv` (not in git) and
+compares the Kotlin pipeline against the numbers the notebook printed for the same file: 280,142
+glucose rows, 245,391 distinct minutes, 244,717 after cleaning, and the 3 h/4 h labels of its five
+sample entries. It **skips** when the export is absent, so the suite passes on a fresh clone without
+pretending it verified anything.
+
+## Warning
+
+This repository contains no medical advice. The app's output is an experiment on one person's data,
+its accuracy is unproven, and insulin errors are dangerous. The product case, including why the
+original attempt was abandoned, is in [IDEA.md](IDEA.md).
+
 
