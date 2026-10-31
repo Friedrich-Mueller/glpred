@@ -25,7 +25,7 @@ class RidgeModelTest {
         )
         val y = doubleArrayOf(3 * 1 - 2 * 0 + 7.0, 3 * 2 - 2 * 1 + 7.0, 3 * 3 - 2 * 5 + 7.0, 3 * 4 - 2 * 2 + 7.0)
 
-        val model = RidgeMath.fitTarget(x, y, lambda = 0.0)!!
+        val model = RidgeMath.fitTarget(x, y, penalties = DoubleArray(2))!!
 
         assertEquals(3.0, model.coefficients[0], 1e-9)
         assertEquals(-2.0, model.coefficients[1], 1e-9)
@@ -44,14 +44,14 @@ class RidgeModelTest {
         // Two identical columns: no unique solution without a penalty.
         val x = arrayOf(doubleArrayOf(1.0, 1.0), doubleArrayOf(2.0, 2.0), doubleArrayOf(3.0, 3.0))
         val y = doubleArrayOf(1.0, 2.0, 3.0)
-        assertNull(RidgeMath.fitTarget(x, y, lambda = 0.0))
+        assertNull(RidgeMath.fitTarget(x, y, penalties = DoubleArray(2)))
     }
 
     @Test
     fun thePenaltyMakesTheSameSystemSolvable() {
         val x = arrayOf(doubleArrayOf(1.0, 1.0), doubleArrayOf(2.0, 2.0), doubleArrayOf(3.0, 3.0))
         val y = doubleArrayOf(1.0, 2.0, 3.0)
-        val model = RidgeMath.fitTarget(x, y, lambda = 0.01)
+        val model = RidgeMath.fitTarget(x, y, penalties = DoubleArray(2) { 0.01 })
         assertNotNull(model)
         // The penalty splits the weight between the two identical features.
         assertEquals(model!!.coefficients[0], model.coefficients[1], 1e-9)
@@ -68,7 +68,8 @@ class RidgeModelTest {
         )
         val model = RidgeModel.fit(samples)
         assertNotNull(model)
-        assertEquals(6, model!!.featureCount)
+        assertEquals(TrainingSample.FEATURE_NAMES.size, model!!.featureCount)
+        assertEquals(10, model.featureCount)
         assertTrue(model.predict4h(samples[0].features()).isFinite())
         assertNotNull(model.predict3h(samples[0].features()))
 

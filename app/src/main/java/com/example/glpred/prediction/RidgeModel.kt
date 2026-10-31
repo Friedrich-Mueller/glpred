@@ -62,6 +62,16 @@ class RidgeModel(
         const val MIN_SAMPLES = 3
 
         /**
+         * How much harder the interaction columns are shrunk than the main effects.
+         *
+         * The time-varying carb factor and insulin sensitivity are the point of the model, but four
+         * extra parameters on a handful of rows would otherwise fit noise. Shrinking them 10x means
+         * the fit starts close to a constant factor per day and only bends toward a time-varying one
+         * when the rows actually support it.
+         */
+        const val INTERACTION_PENALTY_FACTOR = 10.0
+
+        /**
          * Fits both horizons from [samples]. Returns null when there are too few labelled rows -
          * two points always have a perfect line, and three is already optimistic.
          *
@@ -92,16 +102,21 @@ class RidgeModel(
 
             fun standardise(row: DoubleArray) = DoubleArray(dim) { j -> (row[j] - means[j]) / scales[j] }
 
+            val penalties = DoubleArray(dim) { j ->
+                if (j >= TrainingSample.INTERACTION_START_INDEX) lambda * INTERACTION_PENALTY_FACTOR
+                else lambda
+            }
+
             val x4 = Array(usable.size) { standardise(raw[it]) }
             val y4 = DoubleArray(usable.size) { usable[it].after4h!! }
-            val model4h = RidgeMath.fitTarget(x4, y4, lambda) ?: return null
+            val model4h = RidgeMath.fitTarget(x4, y4, penalties) ?: return null
 
             // The 3 h target only sees entries whose 3 h horizon is covered as well.
             val threeHourRows = usable.withIndex().filter { it.value.after3h != null }
             val model3h = if (threeHourRows.size >= MIN_SAMPLES) {
                 val x3 = Array(threeHourRows.size) { standardise(raw[threeHourRows[it].index]) }
                 val y3 = DoubleArray(threeHourRows.size) { threeHourRows[it].value.after3h!! }
-                RidgeMath.fitTarget(x3, y3, lambda)
+                RidgeMath.fitTarget(x3, y3, penalties)
             } else {
                 null
             }
@@ -115,15 +130,19 @@ class RidgeModel(
 internal object RidgeMath {
 
     /**
-     * Solves `min ||y - Xw - b||^2 + lambda * ||w||^2` by centring both X and y, forming
-     * `(X'X + lambda*I) w = X'(y - mean(y))` and eliminating. Centring happens here so no intercept
-     * column is needed in the solve and callers cannot get it wrong; the returned coefficients apply
-     * to *centred* features, with `b = mean(y)`.
+     * Solves `min ||y - Xw - b||^2 + sum(penalties[i] * w[i]^2)` by centring both X and y, forming
+     * `(X'X + diag(penalties)) w = X'(y - mean(y))` and eliminating. Centring happens here so no
+     * intercept column is needed in the solve and callers cannot get it wrong; the returned
+     * coefficients apply to *centred* features, with `b = mean(y)`.
+     *
+     * Per-column penalties let a caller shrink interaction terms harder than main effects, so a
+     * richer model degrades gracefully toward the simpler one instead of overfitting.
      */
-    fun fitTarget(x: Array<DoubleArray>, y: DoubleArray, lambda: Double): TargetModel? {
+    fun fitTarget(x: Array<DoubleArray>, y: DoubleArray, penalties: DoubleArray): TargetModel? {
         if (x.isEmpty() || x.size != y.size) return null
         val n = x.size
         val dim = x[0].size
+        if (penalties.size != dim) return null
 
         val meanY = y.average()
         val centredY = DoubleArray(n) { y[it] - meanY }
@@ -143,7 +162,7 @@ internal object RidgeMath {
                 }
                 a[i][j] = sum
             }
-            a[i][i] += lambda
+            a[i][i] += penalties[i]
             var sum = 0.0
             for (row in 0 until n) sum += (x[row][i] - columnMeans[i]) * centredY[row]
             b[i] = sum

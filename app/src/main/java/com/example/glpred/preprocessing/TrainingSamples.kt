@@ -28,15 +28,36 @@ data class TrainingSample(
     /** Usable for training at the primary horizon. */
     val hasPrimaryLabel: Boolean get() = after4h != null
 
-    /** Feature order: glucose, carbs, bolus, basis, time_sin, time_cos. */
-    fun features(): DoubleArray {
-        val minuteOfDay = minuteOfDay(timestampMs)
-        val angle = 2.0 * PI * minuteOfDay / MINUTES_PER_DAY
-        return doubleArrayOf(glucose, carbs, bolus, basis, sin(angle), cos(angle))
-    }
+    /**
+     * Feature vector for this sample.
+     *
+     * Order: glucose, carbs, bolus, basis, time_sin, time_cos, then four interaction columns
+     * (carbs x sin, carbs x cos, bolus x sin, bolus x cos) that let the carb factor and the insulin
+     * sensitivity vary across the day instead of being constants.
+     */
+    fun features(): DoubleArray = featuresOf(glucose, carbs, bolus, basis, timestampMs)
 
     companion object {
         const val MINUTES_PER_DAY = 1440.0
+
+        /** Index of the bolus column; the dose sweep replaces it. */
+        const val BOLUS_INDEX = 2
+
+        /** First index that belongs to an interaction column (penalised more heavily). */
+        const val INTERACTION_START_INDEX = 6
+
+        val FEATURE_NAMES = listOf(
+            "glucose",
+            "carbs",
+            "bolus",
+            "basis",
+            "time_sin",
+            "time_cos",
+            "carbs_x_sin",
+            "carbs_x_cos",
+            "bolus_x_sin",
+            "bolus_x_cos"
+        )
 
         /** Minute of the local wall clock, matching the notebook's cyclical time features. */
         fun minuteOfDay(epochMs: Long): Int {
@@ -44,7 +65,33 @@ data class TrainingSample(
             return local.hour * 60 + local.minute
         }
 
-        val FEATURE_NAMES = listOf("glucose", "carbs", "bolus", "basis", "time_sin", "time_cos")
+        /**
+         * The one place a feature vector is built: training calls it for a recorded sample, the
+         * advisor calls it for a hypothetical dose, so the two can never drift apart.
+         */
+        fun featuresOf(
+            glucose: Double,
+            carbs: Double,
+            bolus: Double,
+            basis: Double,
+            timestampMs: Long
+        ): DoubleArray {
+            val angle = 2.0 * PI * minuteOfDay(timestampMs) / MINUTES_PER_DAY
+            val sinTime = sin(angle)
+            val cosTime = cos(angle)
+            return doubleArrayOf(
+                glucose,
+                carbs,
+                bolus,
+                basis,
+                sinTime,
+                cosTime,
+                carbs * sinTime,
+                carbs * cosTime,
+                bolus * sinTime,
+                bolus * cosTime
+            )
+        }
     }
 }
 

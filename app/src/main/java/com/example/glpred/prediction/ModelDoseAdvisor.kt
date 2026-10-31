@@ -33,22 +33,19 @@ class ModelDoseAdvisor(
                 "The stored model could not be read - train it again."
             )
 
-        val minuteOfDay = TrainingSample.minuteOfDay(entry.timestampMs)
-        val angle = 2.0 * PI * minuteOfDay / TrainingSample.MINUTES_PER_DAY
-        val features = doubleArrayOf(
-            entry.glucose.toDouble(),
-            entry.carbs.toDouble(),
-            0.0, // bolus - replaced per swept dose
-            entry.basis.toDouble(),
-            sin(angle),
-            cos(angle)
+        val features = TrainingSample.featuresOf(
+            glucose = entry.glucose.toDouble(),
+            carbs = entry.carbs.toDouble(),
+            bolus = 0.0, // replaced per swept dose
+            basis = entry.basis.toDouble(),
+            timestampMs = entry.timestampMs
         )
 
         val selection = DoseSweep.run(features, model::predict4h)
 
         // The 3 h value at the suggested dose is context for the user - selection above is 4 h only.
         val atSuggestion = features.copyOf()
-        atSuggestion[2] = selection.units // bolus; same feature index the sweep replaces
+        atSuggestion[TrainingSample.BOLUS_INDEX] = selection.units
         val predicted3h = model.predict3h(atSuggestion)
 
         return DoseRecommendation.Available(
