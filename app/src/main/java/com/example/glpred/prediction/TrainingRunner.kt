@@ -37,7 +37,11 @@ sealed interface TrainingResult {
         val samples3h: Int?,
         val rmse4h: Double,
         val rmse3h: Double?,
-        val trainedAt: Long
+        val trainedAt: Long,
+        /** Leave-one-out error: the number that may be shown as "accuracy". Null when too few rows. */
+        val looRmse4h: Double? = null,
+        val looFolds4h: Int = 0,
+        val looRmse3h: Double? = null
     ) : TrainingResult
 
     data class Failed(val reason: String) : TrainingResult
@@ -92,13 +96,20 @@ class TrainingRunner(
             )
         )
 
+        // In-sample error is optimistic and cannot compare models; LOO refits without each row.
+        val loo4h = LeaveOneOut.rmse4h(samples, lambda)
+        val loo3h = LeaveOneOut.rmse3h(samples, lambda)
+
         return TrainingResult.Trained(
             entries = entries.size,
             samples4h = model.model4h.sampleCount,
             samples3h = model.model3h?.sampleCount,
             rmse4h = model.model4h.rmse,
             rmse3h = model.model3h?.rmse,
-            trainedAt = trainedAt
+            trainedAt = trainedAt,
+            looRmse4h = loo4h?.rmse,
+            looFolds4h = loo4h?.folds ?: 0,
+            looRmse3h = loo3h?.rmse
         )
     }
 }

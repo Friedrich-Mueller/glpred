@@ -194,9 +194,16 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             is TrainingResult.TooFewSamples ->
                 "Model: ${result.labelled} of ${result.required} labelled entries - record more meals"
             is TrainingResult.Failed -> "Model: training failed - ${result.reason}"
-            is TrainingResult.Trained ->
-                "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL" +
-                    (result.samples3h?.let { ", 3 h fit on $it samples" } ?: ", no 3 h fit")
+            is TrainingResult.Trained -> {
+                val validation = result.looRmse4h
+                if (validation != null) {
+                    "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
+                        "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
+                } else {
+                    "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
+                        "- validation needs one more labelled entry"
+                }
+            }
         }
 
     fun trainModel() {

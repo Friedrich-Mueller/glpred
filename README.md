@@ -47,16 +47,23 @@ training data at all.
 ## The model
 
 A **ridge regression**, solved in closed form inside the app — no framework, no model file, no
-runtime dependency. Features: starting glucose, carbs, dose, long-acting insulin, and time of day
-encoded as a point on a 24-hour circle (`sin`/`cos`).
+runtime dependency. Features: starting glucose, carbs, dose, long-acting insulin, time of day
+encoded as a point on a 24-hour circle (`sin`/`cos`), and four interaction columns
+(`carbs*sin`, `carbs*cos`, `bolus*sin`, `bolus*cos`) that let the carb factor and the insulin
+sensitivity vary across the day rather than being constants.
 
 Why not something bigger: with tens of rows a forest or a neural net fits noise and reports it as
 insight, tree-based models answer counterfactual dose questions with a flat constant, and a linear
-model is guaranteed to predict *less* glucose for *more* insulin across the whole sweep. The reported
-error is **in-sample** and therefore optimistic — a rough scale, not a validation score.
+model is guaranteed to predict *less* glucose for *more* insulin across the whole sweep. Two error
+figures are reported: **leave-one-out** (each entry predicted by a model fitted without it - the
+closer estimate of how it will do on a new meal) and **in-sample** (always optimistic). The gap
+between them is the honesty check.
 
-Known limitation: with the current feature set the carb-to-insulin ratio is the same all day. The
-planned upgrade (time-interacted factors, judged by leave-one-out error) is described in
+The interaction columns are shrunk ten times harder than the main effects, so with little data the
+model behaves like a single constant factor and only develops a time-varying one when the meals
+support it. Two unit tests pin both directions: a time-varying carb factor is reproducible, and a
+relation with no time dependence stays constant. If your factors stay flat, that is a result rather
+than a bug — it means your ratio does not vary enough to be resolved yet. Design notes are in
 [PLAN.md](PLAN.md).
 
 ## Status
@@ -71,8 +78,8 @@ planned upgrade (time-interacted factors, judged by leave-one-out error) is desc
 | Entry flow: enter → review + prediction → final confirm | done |
 | Train action and model status in the UI | in progress |
 | History list, settings | not started |
-| Time-interacted factors (per-time carb ratio) | not started, gated on data |
-| Unit tests | 12, covering loader parity, preprocessing, model math, pipeline |
+| Time-interacted factors (per-time carb ratio) | done |
+| Unit tests | 18, covering loader parity, preprocessing, model math, LOO, time interactions, pipeline |
 
 ## Project layout
 
