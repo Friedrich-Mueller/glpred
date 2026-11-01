@@ -128,7 +128,7 @@ private fun CountsCard(analysis: ModelVsHuman) {
 private fun RatioCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Units per carb unit, by hour")
+            SectionTitle("Insulin-Carb-Ratio, throughout the day")
             val rows = analysis.ratioByHour
             if (rows.isEmpty()) {
                 Line("No meals with carb units recorded yet.", muted = true)
@@ -147,7 +147,7 @@ private fun RatioCard(analysis: ModelVsHuman) {
 private fun ConvergenceCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Whose dose was closer to 90?")
+            SectionTitle("Model vs User performance?")
             val score = analysis.counterfactual
             if (!score.hasEvidence) {
                 Line(
@@ -156,11 +156,12 @@ private fun ConvergenceCard(analysis: ModelVsHuman) {
                 )
             } else {
                 val streak = score.currentStreak
+                val nothingDecided = score.modelWins == 0 && score.humanWins == 0
                 Text(
-                    text = if (streak == 0) {
-                        "Not the model's meal on the latest one"
-                    } else {
-                        "The model was closer on the last $streak " +
+                    text = when {
+                        nothingDecided -> "Nothing decided yet"
+                        streak == 0 -> "Not the model's meal on the latest one"
+                        else -> "The model was closer on the last $streak " +
                             "meal${if (streak == 1) "" else "s"} in a row"
                     },
                     fontSize = 15.sp,

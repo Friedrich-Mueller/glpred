@@ -19,14 +19,14 @@ Since I was bothered by the unfinished state for years, I decided to finish it i
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="images/main.png" width="230" alt="Main menu with New Entry, Fetch Data, History and Train Model buttons, plus a status line reporting the trained model"><br><sub><b>Main menu</b><br>Train, and see how much the model can be trusted</sub></td>
+    <td align="center" width="33%"><img src="images/main.png" width="230" alt="Main menu with New Entry, Fetch Data, History, Model Performance Analysis and Train Model buttons, plus a status line reporting the trained model"><br><sub><b>Main menu</b><br>Train, and see how much the model can be trusted</sub></td>
     <td align="center" width="33%"><img src="images/enter-data.png" width="230" alt="Enter data screen with date, time, blood glucose, carbohydrates and long-acting insulin fields"><br><sub><b>Record a meal</b><br>No short-acting dose yet — that is decided next</sub></td>
     <td align="center" width="33%"><img src="images/review.png" width="230" alt="Review and prediction screen showing the suggested bolus, the 4 h prediction, the model's validation error, a time-coverage warning and the disclaimer"><br><sub><b>Review &amp; prediction</b><br>The suggestion, its error, and why it may not be trustworthy</sub></td>
   </tr>
   <tr>
     <td align="center" width="33%"><img src="images/history.png" width="230" alt="History list of past meals with Trainable and Pending status, the injected dose and the predicted 4 h value beside the actual one"><br><sub><b>History</b><br>Which meals are trainable, and what actually happened</sub></td>
     <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data screen showing the stored CGM span from first to last reading and the total row count"><br><sub><b>Import CGM data</b><br>File picker, reports the time span the import covers</sub></td>
-    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen: how many meals carry a verified 4 h value and the average misprediction, a chart of units per carb unit by hour of day with the user's doses as dots and the model's estimate as a flat line, and a row of coloured squares showing whether the model's advice pointed the right way"><br><sub><b>Analysis</b><br>ICR by hour, and indicator for when the model begins outperforming the user</sub></td>
+    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen: how many meals carry a verified 4 h value and the average misprediction, a chart of units per carb unit by hour of day with the user's doses as dots and the model's estimate as a flat line, and a strip of coloured squares showing meal by meal whether the model's dose was closer to the target than the user's"><br><sub><b>Analysis</b><br>ICR by hour, and indicator for when the model begins outperforming the user</sub></td>
   </tr>
 </table>
 

@@ -383,8 +383,8 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
                             "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
                     result.restoredAtStartup ->
-                        "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
-                            "(restored after restart - press Train to recompute validation)"
+                        "Model: ${result.samples4h} samples, restored - press Train to recompute " +
+                            "the error"
                     else ->
                         "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
                             "- validation needs one more labelled entry"
