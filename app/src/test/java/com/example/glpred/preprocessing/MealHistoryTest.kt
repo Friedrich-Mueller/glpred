@@ -71,31 +71,62 @@ class MealHistoryTest {
         )
     }
 
+    /**
+     * The cross-check that keeps the screen honest: "trainable" must mean exactly "has a 4 h label
+     * in the training set". If someone re-implements the label lookup here, this fails instead of
+     * the two screens disagreeing in silence.
+     */
     @Test
-    fun predictionErrorIsPredictionMinusActual() {
-        val mealAt = local(2026, 6, 1, 12, 0)
-        val cover = TrainingSamples.toWallClockMillis(mealAt)
-        val rows = MealHistory.build(
-            entries = listOf(entry(mealAt, predicted = 120.0)),
-            readings = listOf(CgmReadingEntity(timestampMs = cover + FOUR_HOURS, glucose = 150.0)),
-            nowMs = mealAt + 10 * 3_600_000L
+    fun trainableMealsAreExactlyTheLabelledTrainingRows() {
+        val covered = local(2026, 6, 1, 12, 0)
+        val uncovered = local(2026, 6, 2, 12, 0)
+        val entries = listOf(
+            entry(covered, id = 1L),
+            entry(uncovered, id = 2L) // far after the imported data ends
         )
+        val readings = readingsAround(TrainingSamples.toWallClockMillis(covered))
+        val nowMs = uncovered + 10 * 3_600_000L
 
-        // Predicted low, came out high: 120 - 150 = -30, i.e. off by 30 in the dangerous direction.
-        assertEquals(-30.0, rows[0].predictionErrorMgDl!!, 1e-9)
+        val rows = MealHistory.build(entries, readings, nowMs = nowMs)
+        val labelled = TrainingSamples
+            .labelled(TrainingSamples.build(entries, CgmSeries.from(readings)))
+            .size
+
+        assertEquals(1, labelled) // the fixture must exercise a trainable and a pending meal
+        assertEquals(labelled, rows.count { it.state == HistoryRow.State.TRAINABLE })
     }
 
     @Test
-    fun withoutAStoredPredictionThereIsNoErrorToReport() {
+    fun thePredictionIsRequestedForTheDoseThatWasInjected() {
+        val mealAt = local(2026, 6, 1, 12, 0)
+        val cover = TrainingSamples.toWallClockMillis(mealAt)
+
+        var bolusSeen: Double? = null
+        val rows = MealHistory.build(
+            entries = listOf(entry(mealAt, bolus = 6.5)),
+            readings = readingsAround(cover),
+            predict4h = { sample ->
+                bolusSeen = sample.bolus
+                121.0
+            },
+            nowMs = mealAt + 10 * 3_600_000L
+        )
+
+        assertEquals("the injected dose, not the suggested one", 6.5, bolusSeen!!, 1e-9)
+        assertEquals(121.0, rows[0].predictedForInjectedDoseMgDl!!, 1e-9)
+    }
+
+    @Test
+    fun withoutAModelThereIsNoPrediction() {
         val mealAt = local(2026, 6, 1, 12, 0)
         val cover = TrainingSamples.toWallClockMillis(mealAt)
         val rows = MealHistory.build(
             entries = listOf(entry(mealAt)),
-            readings = listOf(CgmReadingEntity(timestampMs = cover + FOUR_HOURS, glucose = 150.0)),
+            readings = readingsAround(cover),
             nowMs = mealAt + 10 * 3_600_000L
         )
 
-        assertNull(rows[0].predictionErrorMgDl)
+        assertNull(rows[0].predictedForInjectedDoseMgDl)
     }
 
     private fun local(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long =
@@ -104,15 +135,26 @@ class MealHistoryTest {
             .toInstant()
             .toEpochMilli()
 
-    private fun entry(timestamp: Long, predicted: Double? = null) = DiaryEntity(
-        id = 1L,
+    /** Coverage from the meal itself out to four hours, so both horizons resolve. */
+    private fun readingsAround(wallClockMeal: Long) = listOf(
+        CgmReadingEntity(timestampMs = wallClockMeal, glucose = 120.0),
+        CgmReadingEntity(timestampMs = wallClockMeal + THREE_HOURS, glucose = 150.0),
+        CgmReadingEntity(timestampMs = wallClockMeal + FOUR_HOURS, glucose = 140.0)
+    )
+
+    private fun entry(
+        timestamp: Long,
+        id: Long = 1L,
+        bolus: Double = 6.0
+    ) = DiaryEntity(
+        id = id,
         timestamp = timestamp,
         glucose = 120,
         carbs = 6f,
-        bolus = 6.0,
+        bolus = bolus,
         basis = 0,
-        suggestedBolus = null,
-        predictedGlucose = predicted
+        suggestedBolus = 5.5,
+        predictedGlucose = 118.0
     )
 
     private companion object {

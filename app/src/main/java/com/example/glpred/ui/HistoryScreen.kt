@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.glpred.preprocessing.HistoryRow
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -131,20 +130,17 @@ private fun HistoryCard(row: HistoryRow) {
                 fontSize = 13.sp
             )
 
-            // Prediction against reality, the only column that can judge the model itself.
-            val predicted = entry.predictedGlucose
+            // The prediction is for the injected dose, so it and the actual value describe the same
+            // meal and dose. No error figure: judging the model belongs on its own screen.
+            val predicted = row.predictedForInjectedDoseMgDl
             val actual = row.actual4hMgDl
             when {
-                predicted != null && actual != null -> {
-                    val error = row.predictionErrorMgDl?.roundToInt()
-                    Text(
-                        text = "4 h: predicted ${predicted.roundToInt()}  →  " +
-                            "actual ${actual.roundToInt()} mg/dL" +
-                            (error?.let { "   (off by ${abs(it)})" } ?: ""),
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                predicted != null && actual != null -> Text(
+                    text = "4 h: predicted ${predicted.roundToInt()}  →  " +
+                        "actual ${actual.roundToInt()} mg/dL",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 actual != null -> Text(
                     text = "4 h actual: ${actual.roundToInt()} mg/dL",
@@ -153,13 +149,13 @@ private fun HistoryCard(row: HistoryRow) {
                 )
 
                 predicted != null -> Text(
-                    text = "4 h: predicted ${predicted.roundToInt()} mg/dL - not verifiable yet",
+                    text = "4 h: predicted ${predicted.roundToInt()} mg/dL, no CGM value yet",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 else -> Text(
-                    text = "No prediction was stored for this meal",
+                    text = "No model available for a prediction",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

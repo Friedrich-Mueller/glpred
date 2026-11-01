@@ -16,6 +16,7 @@ import com.example.glpred.prediction.ModelDoseAdvisor
 import com.example.glpred.prediction.PredictionCoverage
 import com.example.glpred.prediction.TrainingResult
 import com.example.glpred.prediction.TrainingRunner
+import com.example.glpred.prediction.toRidgeModel
 import com.example.glpred.preprocessing.HistoryRow
 import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
@@ -91,7 +92,14 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 emptyList()
             } else {
                 withContext(Dispatchers.IO) {
-                    MealHistory.build(entries, cgmDao.getAllReadings())
+                    val model = database.trainedModelDao().get()?.toRidgeModel()
+                    MealHistory.build(
+                        entries = entries,
+                        readings = cgmDao.getAllReadings(),
+                        predict4h = model?.let { trained ->
+                            { sample: TrainingSample -> trained.predict4h(sample.features()) }
+                        }
+                    )
                 }.also { isHistoryLoading = false }
             }
         }
