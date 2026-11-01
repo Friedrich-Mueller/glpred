@@ -26,7 +26,7 @@ Since I was bothered by the unfinished state for years, I decided to finish it i
   <tr>
     <td align="center" width="33%"><img src="images/history.png" width="230" alt="History list of past meals with Trainable and Pending status, the injected dose and the predicted 4 h value beside the actual one"><br><sub><b>History</b><br>Which meals are trainable, and what actually happened</sub></td>
     <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data screen showing the stored CGM span from first to last reading and the total row count"><br><sub><b>Import CGM data</b><br>Reports the span the import actually covers</sub></td>
-    <td width="33%"></td>
+    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Model vs you screen comparing the user's dose per carb unit with the model's, by hour of day"><br><sub><b>Model vs you</b><br>Your ratio beside the model's, and what each led to</sub></td>
   </tr>
 </table>
 
