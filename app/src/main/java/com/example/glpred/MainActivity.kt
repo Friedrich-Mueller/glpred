@@ -137,7 +137,7 @@ fun MainScreen(
                 onClick = onAnalysisClick,
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Text(text = "Model vs You")
+                Text(text = "Model Performance Analysis")
             }
 
             Button(
