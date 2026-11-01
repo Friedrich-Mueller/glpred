@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,9 +43,9 @@ fun RatioChart(
     modifier: Modifier = Modifier
 ) {
     val youColor = MaterialTheme.colorScheme.primary
-    // The model line is drawn dark and dashed: tertiary against a card surface is too pale to see,
-    // and a solid look-alike would read as a second measurement rather than a different kind of claim.
-    val modelColor = MaterialTheme.colorScheme.onSurface
+    // Two colours and dots on one series. A dashed or striped line was unreadable at this stroke
+    // width - it looked like a rendering artefact, not a second series.
+    val modelColor = Color(0xFF2E7D32)
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -99,8 +98,7 @@ fun RatioChart(
                     color = modelColor,
                     start = modelPoints[i - 1],
                     end = modelPoints[i],
-                    strokeWidth = 3f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+                    strokeWidth = 3f
                 )
             }
 
@@ -134,8 +132,8 @@ fun RatioChart(
             modifier = Modifier.padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            LegendEntry(youColor, "yours ${formatCurveValue(yourPoints)} (dots = meals)")
-            LegendEntry(modelColor, "model ${formatModelRange(modelCurve)}")
+            LegendEntry(youColor, "you (dots = meals)")
+            LegendEntry(modelColor, "model (every hour)")
         }
     }
 }
@@ -156,19 +154,6 @@ private fun LegendEntry(color: Color, label: String) {
             modifier = Modifier.padding(start = 6.dp)
         )
     }
-}
-
-private fun formatCurveValue(points: List<ModelVsHuman.RatioPoint>): String {
-    if (points.isEmpty()) return "-"
-    val min = points.minOf { it.youUnitsPerCarb }
-    val max = points.maxOf { it.youUnitsPerCarb }
-    return String.format(Locale.US, "%.2f-%.2f u/CU", min, max)
-}
-
-private fun formatModelRange(curve: List<Double?>): String {
-    val values = curve.filterNotNull()
-    if (values.isEmpty()) return "no model"
-    return String.format(Locale.US, "%.2f-%.2f u/CU", values.min(), values.max())
 }
 
 /** A round axis step, so the printed ticks are numbers a human would have chosen. */

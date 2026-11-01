@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -29,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import com.example.glpred.prediction.DirectionalScore
 import com.example.glpred.prediction.ModelVsHuman
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -54,7 +59,7 @@ fun AnalysisScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Model vs you") },
+                title = { Text("Analysis") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -102,16 +107,17 @@ fun AnalysisScreen(
 private fun CountsCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("What this is built on")
+            SectionTitle("Your data")
             Line("${analysis.mealsRecorded} meals recorded")
-            Line("${analysis.mealsWithSuggestion} of those were entered while a model existed, so only they carry a suggestion")
+            Line("${analysis.mealsWithSuggestion} carry a suggestion from the model")
             Line("${analysis.labelledMeals} have a verified 4 h value")
             val validation = analysis.validationErrorMgDl
             Line(
                 if (validation == null) {
-                    "Validation error: not computable yet (needs four labelled meals)"
+                    "Average misprediction: not computable yet (needs four labelled meals)"
                 } else {
-                    "Validation error: typical miss ${validation.roundToInt()} mg/dL on meals the model did not see"
+                    "Average misprediction: ${validation.roundToInt()} mg/dL on meals the model " +
+                        "was not trained on"
                 }
             )
         }
@@ -123,11 +129,6 @@ private fun RatioCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             SectionTitle("Units per carb unit, by hour")
-            Line(
-                "Yours from the doses you injected; the model's from the dose it suggested for the " +
-                    "same meals.",
-                muted = true
-            )
             val rows = analysis.ratioByHour
             if (rows.isEmpty()) {
                 Line("No meals with carb units recorded yet.", muted = true)
@@ -136,12 +137,6 @@ private fun RatioCard(analysis: ModelVsHuman) {
                     yourPoints = rows,
                     modelCurve = analysis.modelCurve,
                     modifier = Modifier.padding(top = 8.dp)
-                )
-                Line(
-                    "Your dots are meals you actually ate; the model's line is its answer for a " +
-                        "typical meal of yours at that hour. Where the two separate, you and the " +
-                        "model disagree about how much a carb unit needs.",
-                    muted = true
                 )
             }
         }
@@ -152,81 +147,92 @@ private fun RatioCard(analysis: ModelVsHuman) {
 private fun ConvergenceCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Is the model beating your rule of thumb?")
-            val convergence = analysis.convergence
-            if (convergence.meals == 0) {
+            SectionTitle("Did the model point the right way?")
+            val score = analysis.directional
+            val window = score.window
+            if (!score.hasEvidence) {
                 Line(
-                    "Nothing to score yet. Each verified meal is scored twice against the same " +
-                        "outcome: once by the model, once by what habit would have predicted.",
+                    "No meal yet has both a suggestion from the model and a verified 4 h value.",
                     muted = true
                 )
             } else {
-                val model = convergence.modelMeanError?.roundToInt() ?: 0
-                val baseline = convergence.baselineMeanError?.roundToInt() ?: 0
                 Text(
-                    text = "Model: misses the 4 h value by ${model} mg/dL on average, over " +
-                        "${convergence.meals} meal${if (convergence.meals == 1) "" else "s"}",
+                    text = "You ended high ${window.highMeals} times, low ${window.lowMeals}, " +
+                        "in band ${window.youInBand}",
                     fontSize = 13.sp
                 )
+                val robust = score.bracketCounts[DirectionalScore.Bracket.ROBUST] ?: 0
                 Text(
-                    text = "Habit: misses it by ${baseline} mg/dL. The model was closer on " +
-                        "${convergence.modelWins} of ${convergence.meals}.",
+                    text = "The model pointed the right way ${window.right} of " +
+                        "${window.scored} times it had something to say",
                     fontSize = 13.sp
                 )
+                VerdictStrip(score.meals, window.size)
+                Row(
+                    modifier = Modifier.padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    StripLegend(verdictColor(DirectionalScore.Verdict.RIGHT), "right")
+                    StripLegend(verdictColor(DirectionalScore.Verdict.WRONG), "wrong")
+                    StripLegend(verdictColor(DirectionalScore.Verdict.NO_REMEDY), "its own dose")
+                    StripLegend(verdictColor(DirectionalScore.Verdict.NO_CLAIM), "in band")
+                }
                 Text(
-                    text = when {
-                        convergence.meals < 10 ->
-                            "Too few meals to call it either way. This is the line to watch."
-                        model < baseline -> "The model is currently the better bet."
-                        else -> "Your habit is still ahead."
-                    },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Line(
-                    "Habit is modelled as \"a meal dosed the usual way leaves you where you " +
-                        "started\", which is the assumption behind dosing by feel. Both are scored " +
-                        "against reality, so neither grades its own homework.",
-                    muted = true
+                    text = "One square per meal, oldest on the left. If 1 unit moves glucose by " +
+                        "${DirectionalScore.SENSITIVITY_LOW.roundToInt()}-" +
+                        "${DirectionalScore.SENSITIVITY_HIGH.roundToInt()} mg/dL, its dose would " +
+                        "certainly have hit the band in $robust of them.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
 }
 
+/** Green means the model's correction pointed the right way, red the opposite. */
+@Composable
+private fun verdictColor(verdict: DirectionalScore.Verdict) = when (verdict) {
+    DirectionalScore.Verdict.RIGHT -> Color(0xFF2E7D32)
+    DirectionalScore.Verdict.WRONG -> MaterialTheme.colorScheme.error
+    DirectionalScore.Verdict.NO_REMEDY -> MaterialTheme.colorScheme.outline
+    DirectionalScore.Verdict.NO_CLAIM -> MaterialTheme.colorScheme.outlineVariant
+}
+
 /**
- * One bucket of meals with the share that landed in band: the number, and a bar drawn from the same
- * share so the two cannot disagree. An empty bucket says "no meals" rather than drawing a 0 % bar,
- * which would look like evidence of failure instead of absence of evidence.
+ * One square per judged meal, oldest to newest: the model's direction verdict. A percentage hides
+ * streaks, and streaks are what the eye needs in order to judge a crossover.
  */
 @Composable
-private fun BucketBar(label: String, bucket: ModelVsHuman.Bucket) {
-    val share = bucket.inBandShare
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = if (share == null) {
-                "$label: no meals"
-            } else {
-                "$label: ${bucket.inBand} of ${bucket.meals} in band " +
-                    "(${(share * 100).roundToInt()} %)"
-            },
-            fontSize = 13.sp
-        )
+private fun VerdictStrip(meals: List<DirectionalScore.Meal>, windowSize: Int) {
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        meals.takeLast(windowSize).forEach { meal ->
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(verdictColor(meal.verdict), RoundedCornerShape(3.dp))
+            )
+        }
+    }
+}
+
+@Composable
+private fun StripLegend(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
-        ) {
-            if (share != null && share > 0.0) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(share.toFloat())
-                        .height(8.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
-                )
-            }
-        }
+                .size(9.dp)
+                .background(color, RoundedCornerShape(2.dp))
+        )
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }
 

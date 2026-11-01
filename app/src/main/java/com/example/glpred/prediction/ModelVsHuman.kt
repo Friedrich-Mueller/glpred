@@ -27,7 +27,9 @@ data class ModelVsHuman(
      */
     val modelCurve: List<Double?> = emptyList(),
     /** Model against rule of thumb, meal by meal, in time order. */
-    val convergence: Convergence = Convergence(emptyList())
+    val convergence: Convergence = Convergence(emptyList()),
+    /** Direction-only verdicts, which need no sensitivity, plus the bracket over a plausible range. */
+    val directional: DirectionalScore.Result = DirectionalScore.EMPTY
 ) {
 
     /**
@@ -171,6 +173,7 @@ data class ModelVsHuman(
                             )
                         }
                 ),
+                directional = DirectionalScore.build(entries, samples),
                 mealsRecorded = entries.size,
                 mealsWithSuggestion = entries.count { it.suggestedBolus != null },
                 labelledMeals = samples.count { it.after4h != null },
