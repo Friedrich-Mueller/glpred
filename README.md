@@ -80,13 +80,13 @@ than a bug — it means your ratio does not vary enough to be resolved yet. Desi
 | Train action, model status, model restored after restart | done |
 | Honest accuracy figure (leave-one-out) | done |
 | Time-coverage warning for unobserved hours + in-app disclaimer | done |
-| History list | not started |
+| History list with pending/labelled state, suggestion vs injected, prediction vs actual | done |
 | Settings (target band, horizon) | deliberately dropped for v1 |
-| Unit tests | 23, covering loader parity, preprocessing, model math, LOO, coverage, time interactions, pipeline |
+| Unit tests | 28, covering loader parity, preprocessing, model math, LOO, coverage, history states, time interactions, pipeline |
 
-Everything under "How it works" runs end to end. What is missing is the history view: a list of past
-meals showing which ones are pending versus labelled, what the model suggested next to what you
-injected, and the predicted 4 h value next to the one that actually happened.
+Everything described above is implemented. A meal is only a training row once the imported CGM
+covers the moment four hours after it; the history screen shows exactly which meals have reached
+that point and which are still waiting on an import.
 
 ## Project layout
 
