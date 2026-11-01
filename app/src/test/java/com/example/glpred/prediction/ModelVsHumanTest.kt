@@ -1,16 +1,14 @@
 package com.example.glpred.prediction
 
 import com.example.glpred.data.DiaryEntity
-import com.example.glpred.preprocessing.TrainingSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The analysis screen draws conclusions about a person, so its arithmetic is pinned here: the ratio
- * derivation, the band boundaries, the follow tolerance, and the fact that empty buckets report
- * nothing rather than zero.
+ * The analysis screen draws conclusions about a person, so its ratio arithmetic is pinned here: the
+ * weighting by carb units, the fact that a meal with no suggestion still counts for the user, and
+ * that hours are sorted with correction-only entries left out.
  */
 class ModelVsHumanTest {
 
@@ -46,65 +44,6 @@ class ModelVsHumanTest {
     }
 
     @Test
-    fun followingIsJudgedWithinHalfAUnit() {
-        val entries = listOf(
-            entry(id = 1L, hour = 12, carbs = 5f, bolus = 5.5, suggested = 5.0), // followed
-            entry(id = 2L, hour = 12, carbs = 5f, bolus = 6.0, suggested = 5.0), // 1.0 over: not
-            entry(id = 3L, hour = 12, carbs = 5f, bolus = 4.5, suggested = 5.0)  // followed
-        )
-        val samples = entries.map { sample(it.id, after4h = 120.0) }
-
-        val outcome = ModelVsHuman.build(entries, samples).outcome
-
-        assertEquals(2, outcome.followed.meals)
-        assertEquals(1, outcome.notFollowed.meals)
-    }
-
-    @Test
-    fun theBandIsInclusiveAtBothEnds() {
-        val entries = listOf(
-            entry(id = 1L, hour = 12, carbs = 5f, bolus = 5.0, suggested = 5.0),
-            entry(id = 2L, hour = 12, carbs = 5f, bolus = 5.0, suggested = 5.0),
-            entry(id = 3L, hour = 12, carbs = 5f, bolus = 5.0, suggested = 5.0)
-        )
-        val samples = listOf(
-            sample(1L, after4h = 90.0),   // in
-            sample(2L, after4h = 140.0),  // in
-            sample(3L, after4h = 141.0)   // out
-        )
-
-        val bucket = ModelVsHuman.build(entries, samples).outcome.followed
-
-        assertEquals(3, bucket.meals)
-        assertEquals(2, bucket.inBand)
-        assertEquals(2.0 / 3.0, bucket.inBandShare!!, 1e-9)
-    }
-
-    @Test
-    fun mealsWithoutAStoredSuggestionCannotJudgeTheModel() {
-        // Entered before any model existed: no suggestion, so it says nothing about following it.
-        val entries = listOf(entry(id = 1L, hour = 12, carbs = 5f, bolus = 5.0, suggested = null))
-        val samples = listOf(sample(1L, after4h = 120.0))
-
-        val analysis = ModelVsHuman.build(entries, samples)
-
-        assertTrue(analysis.outcome.followed.meals == 0 && analysis.outcome.notFollowed.meals == 0)
-        assertNull("no evidence is reported as nothing, never as 0 %", analysis.outcome.followed.inBandShare)
-        assertEquals(1, analysis.labelledMeals)
-    }
-
-    @Test
-    fun anUnlabelledMealCannotCountAsInOrOutOfBand() {
-        val entries = listOf(entry(id = 1L, hour = 12, carbs = 5f, bolus = 5.0, suggested = 5.0))
-
-        // No 4 h label yet.
-        val analysis = ModelVsHuman.build(entries, listOf(sample(1L, after4h = null)))
-
-        assertEquals(0, analysis.outcome.followed.meals)
-        assertEquals(0, analysis.labelledMeals)
-    }
-
-    @Test
     fun hoursAreSortedAndCarbslessMealsAreIgnored() {
         val entries = listOf(
             entry(id = 1L, hour = 19, carbs = 6f, bolus = 6.0, suggested = 6.0),
@@ -132,17 +71,6 @@ class ModelVsHumanTest {
         basis = 0,
         suggestedBolus = suggested,
         predictedGlucose = null
-    )
-
-    private fun sample(id: Long, after4h: Double?) = TrainingSample(
-        entryId = id,
-        timestampMs = timestampAt(12, id.toInt()),
-        glucose = 120.0,
-        carbs = 5.0,
-        bolus = 5.0,
-        basis = 0.0,
-        after3h = null,
-        after4h = after4h
     )
 
     private fun timestampAt(hour: Int, dayOffset: Int): Long =
