@@ -119,7 +119,7 @@ fun ConfirmDataScreen(
                             if (recommendation.inRange) {
                                 SummaryRow(
                                     label = "Suggested bolus:",
-                                    value = "${formatUnits(recommendation.suggestedUnits)} units"
+                                    value = "${formatUnits(recommendation.suggestedUnits)} unit/s"
                                 )
                                 SummaryRow(
                                     label = "Predicted glucose after 4 h (primary):",
@@ -139,7 +139,7 @@ fun ConfirmDataScreen(
                                     color = MaterialTheme.colorScheme.error
                                 )
                                 Text(
-                                    text = "Closest with ${formatUnits(recommendation.suggestedUnits)} units: " +
+                                    text = "Closest with ${formatUnits(recommendation.suggestedUnits)} unit/s: " +
                                         "${recommendation.predictedGlucoseMgDl.toInt()} mg/dL predicted. " +
                                         "Do not treat this as a recommendation.",
                                     fontSize = 13.sp,

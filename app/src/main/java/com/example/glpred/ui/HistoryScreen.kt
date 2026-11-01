@@ -120,7 +120,7 @@ private fun HistoryCard(row: HistoryRow) {
 
             Text(
                 text = "${entry.glucose} mg/dL starting  ·  " +
-                    "${formatUnits(entry.carbs.toDouble())} carb units  ·  basis ${entry.basis} u",
+                    "${formatUnits(entry.carbs.toDouble())} carb unit/s  ·  basis ${entry.basis} u",
                 fontSize = 13.sp
             )
 
