@@ -24,6 +24,7 @@ import com.example.glpred.ui.DiaryViewModel
 import com.example.glpred.ui.EnterDataScreen
 import com.example.glpred.ui.FetchDataScreen
 import com.example.glpred.ui.FinalConfirmScreen
+import com.example.glpred.ui.HistoryScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         onNewEntryClick = { navController.navigate("enter_data") },
                         onFetchDataClick = { navController.navigate("fetch_data") },
+                        onHistoryClick = { navController.navigate("history") },
                         trainingStatus = viewModel.trainingStatus,
                         isTraining = viewModel.isTraining,
                         onTrainClick = { viewModel.trainModel() }
@@ -73,6 +75,12 @@ class MainActivity : ComponentActivity() {
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
+                composable("history") {
+                    HistoryScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        viewModel = viewModel
+                    )
+                }
             }
         }
     }
@@ -82,6 +90,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     onNewEntryClick: () -> Unit,
     onFetchDataClick: () -> Unit,
+    onHistoryClick: () -> Unit,
     trainingStatus: String,
     isTraining: Boolean,
     onTrainClick: () -> Unit
@@ -106,6 +115,13 @@ fun MainScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
                 Text(text = "Fetch Data")
+            }
+
+            Button(
+                onClick = onHistoryClick,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text(text = "History")
             }
 
             Button(

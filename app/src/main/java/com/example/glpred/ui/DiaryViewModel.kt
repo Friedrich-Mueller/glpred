@@ -16,11 +16,16 @@ import com.example.glpred.prediction.ModelDoseAdvisor
 import com.example.glpred.prediction.PredictionCoverage
 import com.example.glpred.prediction.TrainingResult
 import com.example.glpred.prediction.TrainingRunner
+import com.example.glpred.preprocessing.HistoryRow
+import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Drives the enter -> review/prediction -> final confirm flow and persists diary entries.
@@ -60,6 +65,36 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val allEntries: StateFlow<List<DiaryEntity>> = diaryDao.getAllEntries()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val cgmDao = CgmDatabase.getDatabase(application).cgmDao()
+
+    var isHistoryLoading by mutableStateOf(true)
+        private set
+
+    /**
+     * Past meals with their label state. Rebuilt whenever the diary changes, and the CGM series is
+     * re-read on each rebuild, so a fresh import shows up without a cache to invalidate.
+     *
+     * The flag is set from inside the mapping because an empty initial flow value is
+     * indistinguishable from "no meals recorded" otherwise, and the screen would flash the empty
+     * message on every open.
+     */
+    val history: StateFlow<List<HistoryRow>> = allEntries
+        .map { entries ->
+            if (entries.isEmpty()) {
+                isHistoryLoading = false
+                emptyList()
+            } else {
+                withContext(Dispatchers.IO) {
+                    MealHistory.build(entries, cgmDao.getAllReadings())
+                }.also { isHistoryLoading = false }
+            }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
