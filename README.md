@@ -15,6 +15,32 @@ Since I was bothered by the unfinished state for years, I decided to finish it i
 > **It is a personal experiment, not a medical device.** It does not replace on-the-fly correction
 > dosing with a CGM, and nobody should make an insulin decision on its output alone.
 
+## What makes it different
+
+Conventional mealtime dosing is arithmetic:
+
+```
+bolus = carbs / ICR + (glucose - target) / ISF
+```
+
+with two numbers — the insulin-to-carb ratio and the insulin sensitivity factor — assigned by a
+clinician as constants, or as a few blocks for morning, noon and evening, and then corrected by
+trial and error over months.
+
+Glpred estimates both of those numbers from the person's own meal and CGM history, and estimates
+them as continuous functions of time of day rather than as blocks. The dose it suggests is not
+computed from that formula at all: it sweeps candidate doses through the fitted prediction and
+reports the one whose predicted 4-hour glucose lands closest to the target.
+
+What is different is not that a model is involved, but where the factors come from. A rule of thumb
+is a population average someone has adjusted toward you; these factors are estimated from your own
+meals, doses and glucose. That is why the app can in principle dose better than the arithmetic —
+and why the analysis screen reports whether it actually has.
+
+"In principle" is carrying weight in that sentence. With a few dozen meals the factor estimates are
+still dominated by uncertainty, and a well-tuned rule of thumb will beat them. The app prints its
+error and its uncertainty next to every suggestion rather than hiding them.
+
 ## Screenshots
 
 <table>
@@ -102,7 +128,7 @@ than a bug — it means your ratio does not vary enough to be resolved yet. Desi
 | Time-coverage warning for unobserved hours + in-app disclaimer | done |
 | History list with pending/labelled state, suggestion vs injected, prediction vs actual | done |
 | Settings (target band, horizon) | deliberately dropped for v1 |
-| Unit tests | 29, covering loader parity, preprocessing, model math, LOO, coverage, history states, time interactions, pipeline |
+| Unit tests | 39, covering loader parity, preprocessing, model math, LOO, coverage, history states, time interactions, ratio derivation, counterfactual scoring, pipeline |
 
 Everything described above is implemented. A meal is only a training row once the imported CGM
 covers the moment four hours after it; the history screen shows exactly which meals have reached
@@ -140,7 +166,7 @@ export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"   # gradlew needs
 ./gradlew testDebugUnitTest
 ```
 
-The parity test reads `glpred_prototype/MaxMustermann_glucose_20-10-2026.csv` (not in git) and
+The parity test reads the export in `glpred_prototype/` (not in git) and
 compares the Kotlin pipeline against the numbers the notebook printed for the same file: 280,142
 glucose rows, 245,391 distinct minutes, 244,717 after cleaning, and the 3 h/4 h labels of its five
 sample entries. It **skips** when the export is absent, so the suite passes on a fresh clone without

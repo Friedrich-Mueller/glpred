@@ -22,6 +22,6 @@ local.properties
 deprecated/
 
 # Hermes/Agent
-IDEA.md
-AGENTS.md
-PLAN.md
+#AGENTS.md
+#IDEA.md
+#PLAN.md
