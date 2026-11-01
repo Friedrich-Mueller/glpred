@@ -26,6 +26,25 @@ The GCM data holds, among others, records for datetime and glucose level, which 
 
 The android app allows the input (and recording via a SQLite database) of 5 values, which together build the input vector in regards to machine learning. Those are date, time, glucose level at the time, consumed carb units at the time, injected insulin at the time,  and injected long term insulin (injected once, twice or in some cases three times a day). Using the input vectors date and time values allows association with a later in time glucose level from the GCM data, thereby creating input vector and (regression) label.
 
+## The 2021 attempt
+
+An earlier, abandoned prototype (working title "IITQD") — its raw entry form and the confirmation
+screen it led to. The screenshots are kept as a record of that attempt, not as working code.
+
+<table>
+  <tr>
+    <td align="center" width="45%"><img src="../images/OUTDATED_IITQD2.png" width="230" alt="The 2021 prototype's entry form: five unlabelled text fields filled with 1/11/2021, 1:11, 111, 1, 1 and 11"><br><sub><b>Raw entry form</b><br>Five unlabelled fields, no validation</sub></td>
+    <td align="center" width="45%"><img src="../images/OUTDATED_IITQD.png" width="230" alt="The 2021 prototype's confirmation screen listing date 1/11/2021, time 1:11, glucose 111, carb units 1, bolus units 1, basis units 11"><br><sub><b>Confirmation</b><br>The same values, now readable</sub></td>
+  </tr>
+</table>
+
+What the screenshots also record is a data problem: every field carries a placeholder
+(1/11/2021, 1:11, 111 mg/dL, 1 carb unit, 1 bolus unit, 11 basis units). The same habit is visible in
+this prototype's notebook, where the five recorded rows held constant carb, bolus and basis values —
+so four of six features had zero variance and the model was effectively trained on the time of day
+alone. That is one of the reasons the first attempt was shelved, and why the current app asks for a
+typed, validated entry rather than a bare form.
+
 ## Disclaimer
 
 This software is an experimental engineering prototype and academic exploration of individualized ($N=1$) predictive modeling. It is not a certified medical device, has not been evaluated or approved by any regulatory agency such as the Food and Drug Administration or equivalent international bodies, and is not intended for clinical diagnosis, treatment, or automated medical decision-making.
