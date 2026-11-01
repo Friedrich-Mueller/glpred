@@ -126,6 +126,28 @@ glucose rows, 245,391 distinct minutes, 244,717 after cleaning, and the 3 h/4 h 
 sample entries. It **skips** when the export is absent, so the suite passes on a fresh clone without
 pretending it verified anything.
 
+## Time zone assumptions
+
+This app assumes **one fixed time zone**, and it never stores an offset with a reading. If you fork
+it, or travel with it, these three properties are what keep the numbers honest:
+
+1. **Two encodings live side by side.** CGM timestamps are the export's wall clock, stored as if
+   they were UTC (`CgmReadingEntity.timestampMs`); diary entries are real epoch instants resolved
+   against the device zone (`DiaryEntity.timestamp`). The same moment therefore differs by the UTC
+   offset between the two stores. They are reconciled in exactly one function,
+   `TrainingSamples.toWallClockMillis`, and every cross-store read must go through it.
+2. **The device zone is read at import and at training time.** If it changes in between - travel, a
+   manual change, a fork hardcoding a different zone - past diary entries and past CGM labels no
+   longer describe the same wall clock, and every label silently shifts by the offset difference.
+3. **The daylight-saving fall-back hour is dropped, not guessed.** During it one wall-clock hour
+   happens twice and the export carries no offset saying which is which, so those minutes are left
+   out of the CGM series rather than assigned to the wrong hour.
+
+The failure mode in all three cases is **not an exception**: it is a plausible glucose value
+attributed to the wrong hour, which trains the model on garbage while every screen still renders.
+If you change anything about timestamps, change it end to end and re-run
+`PreprocessingParityTest` - it pins the cleaning result to an exact minute count.
+
 ## Warning
 
 This repository contains no medical advice. The app's output is an experiment on one person's data,
