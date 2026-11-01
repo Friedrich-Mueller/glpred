@@ -20,6 +20,7 @@ import com.example.glpred.prediction.toRidgeModel
 import com.example.glpred.preprocessing.HistoryRow
 import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -295,6 +296,25 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
                             "- validation needs one more labelled entry"
                 }
+            }
+        }
+
+    /**
+     * How much the current model can be trusted, shown beside every suggestion.
+     *
+     * The sweep always finds *some* dose that lands in band under the model, however wrong the model
+     * is, so a dose printed without its error is the app's most misleading output. This is why the
+     * figure lives here rather than only on the main screen.
+     */
+    val modelQuality: String?
+        get() {
+            val trained = trainingResult as? TrainingResult.Trained ?: return null
+            val validation = trained.looRmse4h
+            return if (validation != null) {
+                "Model: ${trained.samples4h} samples - typical miss " +
+                    "${validation.roundToInt()} mg/dL on meals it did not see"
+            } else {
+                "Model: ${trained.samples4h} samples - accuracy not validated yet"
             }
         }
 

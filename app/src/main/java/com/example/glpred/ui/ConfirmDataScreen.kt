@@ -155,6 +155,17 @@ fun ConfirmDataScreen(
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
+
+                            // A dose without its error is the most misleading thing this screen can
+                            // print: the sweep always finds a dose that fits, however wrong the
+                            // model is.
+                            viewModel.modelQuality?.let { quality ->
+                                Text(
+                                    text = quality,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
