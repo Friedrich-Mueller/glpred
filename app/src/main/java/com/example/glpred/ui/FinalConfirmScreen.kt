@@ -81,18 +81,18 @@ fun FinalConfirmScreen(
                     SummaryRow(label = "Date:", value = viewModel.tempDate)
                     SummaryRow(label = "Time:", value = viewModel.tempTime)
                     SummaryRow(label = "Blood Glucose:", value = "${viewModel.tempGlucose} mg/dL")
-                    SummaryRow(label = "Carbohydrates:", value = "${viewModel.tempCarbs} units")
-                    SummaryRow(label = "Basis (Long-Acting):", value = "${viewModel.tempBasis} units")
+                    SummaryRow(label = "Carbohydrates:", value = "${viewModel.tempCarbs} unit/s")
+                    SummaryRow(label = "Basis (Long-Acting):", value = "${viewModel.tempBasis} unit/s")
                     SummaryRow(
                         label = "Bolus injected (Short-Acting):",
-                        value = "${viewModel.actualBolusStr} units"
+                        value = "${viewModel.actualBolusStr} unit/s"
                     )
                 }
             }
 
             if (suggestion != null) {
                 Text(
-                    text = "The app suggested ${formatUnits(suggestion.suggestedUnits)} units " +
+                    text = "The app suggested ${formatUnits(suggestion.suggestedUnits)} unit/s " +
                         "(predicted ${suggestion.predictedGlucoseMgDl.toInt()} mg/dL).",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

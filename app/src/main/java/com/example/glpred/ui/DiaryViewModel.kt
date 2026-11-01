@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.glpred.data.CgmDatabase
+import com.example.glpred.data.DataVersion
 import com.example.glpred.data.DiaryDatabase
 import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
@@ -24,6 +25,9 @@ import com.example.glpred.preprocessing.HistoryRow
 import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
 import com.example.glpred.preprocessing.TrainingSamples
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,6 +54,23 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     init {
         restoreStoredModel()
     }
+
+    /**
+     * Diary version this screen has seen. Edits and deletes bump it; new meals do not. Initialised
+     * here rather than in `init`, because Kotlin resolves initialisers in declaration order.
+     */
+    var dataVersion by mutableStateOf(DataVersion.current(getApplication()))
+        private set
+
+    private var trainedVersion by mutableStateOf(DataVersion.trainedVersion(getApplication()))
+
+    /**
+     * True when the stored model was fitted on rows that have since been edited or removed. It is
+     * not refitted automatically: silently changing the numbers under the user would hide that the
+     * data moved, and a refit is one tap away.
+     */
+    val isModelStale: Boolean
+        get() = trainingResult is TrainingResult.Trained && trainedVersion != dataVersion
 
     /**
      * The model survives the process, so the status line must not claim otherwise: without this the
@@ -318,7 +339,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             is TrainingResult.Failed -> "Model: training failed - ${result.reason}"
             is TrainingResult.Trained -> {
                 val validation = result.looRmse4h
-                when {
+                val base = when {
                     validation != null ->
                         "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
                             "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
@@ -329,6 +350,7 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
                             "- validation needs one more labelled entry"
                 }
+                if (isModelStale) "$base - a meal was edited or deleted since" else base
             }
         }
 
@@ -351,6 +373,71 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+    /**
+     * Removes a meal. The model was fitted with this row in it, so the edit marks it stale rather
+     * than refitting on the spot - refitting silently would hide that the numbers changed.
+     */
+    fun deleteEntry(id: Long) {
+        viewModelScope.launch {
+            diaryDao.deleteEntry(id)
+            dataVersion = DataVersion.bump(getApplication())
+        }
+    }
+
+    /**
+     * Applies an edit to any of the six recorded values, returning null when it was accepted or the
+     * reason it was not - so the editor can stay open rather than silently discard a correction.
+     */
+    fun updateEntry(
+        original: DiaryEntity,
+        date: String,
+        time: String,
+        glucoseStr: String,
+        carbsStr: String,
+        bolusStr: String,
+        basisStr: String
+    ): String? {
+        val timestamp = runCatching {
+            LocalDateTime.parse(
+                "${date.trim()} ${time.trim()}",
+                DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+            )
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull() ?: return "Date and time must look like 01.11.2026 and 18:20."
+
+        val glucose = glucoseStr.trim().toIntOrNull()
+        if (glucose == null || glucose <= 0) return "Blood glucose must be a whole number above 0."
+        val carbs = carbsStr.replace(',', '.').trim().toDoubleOrNull()
+        if (carbs == null || carbs < 0.0) return "Carb units must be a number, 0 or more."
+        val bolus = bolusStr.replace(',', '.').trim().toDoubleOrNull()
+        if (bolus == null || bolus < 0.0) return "Injected units must be a number, 0 or more."
+        val basis = basisStr.trim().toIntOrNull()
+        if (basis == null || basis < 0) return "Basis units must be a whole number, 0 or more."
+
+        val mealChanged = timestamp != original.timestamp || glucose != original.glucose ||
+            carbs.toFloat() != original.carbs || basis != original.basis
+
+        viewModelScope.launch {
+            diaryDao.updateEntry(
+                original.copy(
+                    timestamp = timestamp,
+                    glucose = glucose,
+                    carbs = carbs.toFloat(),
+                    bolus = bolus,
+                    basis = basis,
+                    // The suggestion was made for the meal as it was. Once the meal itself changes it
+                    // no longer describes this entry, so it is dropped rather than left to mislead.
+                    suggestedBolus = if (mealChanged) null else original.suggestedBolus,
+                    predictedGlucose = if (mealChanged) null else original.predictedGlucose
+                )
+            )
+            dataVersion = DataVersion.bump(getApplication())
+        }
+        return null
+    }
+
     fun trainModel() {
         if (isTraining) return
         isTraining = true
@@ -361,6 +448,9 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             // beside the model in preferences for the out-of-distribution guard.
             (result as? TrainingResult.Trained)?.let { trained ->
                 PredictionCoverage.save(getApplication(), trained.coveredHours)
+                // The fit describes the diary as it is now, so this is the version it is valid for.
+                DataVersion.markTrained(getApplication())
+                trainedVersion = dataVersion
             }
             isTraining = false
         }
