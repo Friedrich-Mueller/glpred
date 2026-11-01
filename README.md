@@ -25,8 +25,8 @@ Since I was bothered by the unfinished state for years, I decided to finish it i
   </tr>
   <tr>
     <td align="center" width="33%"><img src="images/history.png" width="230" alt="History list of past meals with Trainable and Pending status, the injected dose and the predicted 4 h value beside the actual one"><br><sub><b>History</b><br>Which meals are trainable, and what actually happened</sub></td>
-    <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data screen showing the stored CGM span from first to last reading and the total row count"><br><sub><b>Import CGM data</b><br>Reports the span the import actually covers</sub></td>
-    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen: how many meals carry a verified 4 h value and the average misprediction, a chart of units per carb unit by hour of day with the user's doses as dots and the model's estimate as a flat line, and a row of coloured squares showing whether the model's advice pointed the right way"><br><sub><b>Analysis</b><br>Dose per carb unit by hour, and whether the model's advice pointed the right way</sub></td>
+    <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data screen showing the stored CGM span from first to last reading and the total row count"><br><sub><b>Import CGM data</b><br>File picker, reports the time span the import covers</sub></td>
+    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen: how many meals carry a verified 4 h value and the average misprediction, a chart of units per carb unit by hour of day with the user's doses as dots and the model's estimate as a flat line, and a row of coloured squares showing whether the model's advice pointed the right way"><br><sub><b>Analysis</b><br>ICR by hour, and indicator for when the model begins outperforming the user</sub></td>
   </tr>
 </table>
 
