@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.glpred.ui.AnalysisScreen
 import com.example.glpred.ui.ConfirmDataScreen
 import com.example.glpred.ui.DiaryViewModel
 import com.example.glpred.ui.EnterDataScreen
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
                         onNewEntryClick = { navController.navigate("enter_data") },
                         onFetchDataClick = { navController.navigate("fetch_data") },
                         onHistoryClick = { navController.navigate("history") },
+                        onAnalysisClick = { navController.navigate("analysis") },
                         trainingStatus = viewModel.trainingStatus,
                         isTraining = viewModel.isTraining,
                         onTrainClick = { viewModel.trainModel() }
@@ -81,6 +83,12 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel
                     )
                 }
+                composable("analysis") {
+                    AnalysisScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        viewModel = viewModel
+                    )
+                }
             }
         }
     }
@@ -91,6 +99,7 @@ fun MainScreen(
     onNewEntryClick: () -> Unit,
     onFetchDataClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onAnalysisClick: () -> Unit,
     trainingStatus: String,
     isTraining: Boolean,
     onTrainClick: () -> Unit
@@ -122,6 +131,13 @@ fun MainScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
                 Text(text = "History")
+            }
+
+            Button(
+                onClick = onAnalysisClick,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text(text = "Model vs You")
             }
 
             Button(

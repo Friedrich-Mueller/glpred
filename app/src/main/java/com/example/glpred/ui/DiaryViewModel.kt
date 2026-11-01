@@ -12,14 +12,18 @@ import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
+import com.example.glpred.prediction.LeaveOneOut
 import com.example.glpred.prediction.ModelDoseAdvisor
+import com.example.glpred.prediction.ModelVsHuman
 import com.example.glpred.prediction.PredictionCoverage
 import com.example.glpred.prediction.TrainingResult
 import com.example.glpred.prediction.TrainingRunner
 import com.example.glpred.prediction.toRidgeModel
+import com.example.glpred.preprocessing.CgmSeries
 import com.example.glpred.preprocessing.HistoryRow
 import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
+import com.example.glpred.preprocessing.TrainingSamples
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -109,6 +113,35 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    var analysis by mutableStateOf<ModelVsHuman?>(null)
+        private set
+
+    var isAnalysisLoading by mutableStateOf(false)
+        private set
+
+    /**
+     * Recomputed on demand rather than cached: the figure is only interesting because it changes as
+     * meals accumulate. The cost is one CGM read plus a handful of small solves.
+     */
+    fun refreshAnalysis() {
+        if (isAnalysisLoading) return
+        isAnalysisLoading = true
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val entries = diaryDao.getAllEntriesList()
+                if (entries.isEmpty()) {
+                    ModelVsHuman.build(emptyList(), emptyList())
+                } else {
+                    val series = CgmSeries.from(cgmDao.getAllReadings())
+                    val samples = TrainingSamples.build(entries, series)
+                    ModelVsHuman.build(entries, samples, LeaveOneOut.rmse4h(samples)?.rmse)
+                }
+            }
+            analysis = result
+            isAnalysisLoading = false
+        }
+    }
 
     // ---------------------------------------------------------------- draft entry
 
