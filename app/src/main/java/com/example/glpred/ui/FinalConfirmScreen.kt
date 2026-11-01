@@ -23,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -65,26 +64,26 @@ fun FinalConfirmScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Check the entry before it is written to the diary:",
-                fontSize = 16.sp,
+                text = "Saving this entry",
+                fontSize = Type.section,
                 fontWeight = FontWeight.Medium
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(Space.loose),
+                    verticalArrangement = Arrangement.spacedBy(Space.normal)
                 ) {
-                    SummaryRow(label = "Date:", value = viewModel.tempDate)
-                    SummaryRow(label = "Time:", value = viewModel.tempTime)
-                    SummaryRow(label = "Blood Glucose:", value = "${viewModel.tempGlucose} mg/dL")
-                    SummaryRow(label = "Carbohydrates:", value = "${viewModel.tempCarbs} unit/s")
-                    SummaryRow(label = "Basis (Long-Acting):", value = "${viewModel.tempBasis} unit/s")
+                    SummaryRow(label = "Date", value = viewModel.tempDate)
+                    SummaryRow(label = "Time", value = viewModel.tempTime)
+                    SummaryRow(label = "Glucose", value = "${viewModel.tempGlucose} mg/dL")
+                    SummaryRow(label = "Carbs", value = "${viewModel.tempCarbs} unit/s")
+                    SummaryRow(label = "Basis", value = "${viewModel.tempBasis} unit/s")
                     SummaryRow(
-                        label = "Bolus injected (Short-Acting):",
+                        label = "Injected",
                         value = "${viewModel.actualBolusStr} unit/s"
                     )
                 }
@@ -94,7 +93,7 @@ fun FinalConfirmScreen(
                 Text(
                     text = "The app suggested ${formatUnits(suggestion.suggestedUnits)} unit/s " +
                         "(predicted ${suggestion.predictedGlucoseMgDl.toInt()} mg/dL).",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

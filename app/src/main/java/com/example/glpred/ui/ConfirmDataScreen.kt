@@ -3,6 +3,7 @@ package com.example.glpred.ui
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,8 +25,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -66,24 +67,24 @@ fun ConfirmDataScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Please review your entry details:",
-                fontSize = 16.sp,
+                text = "Your entry",
+                fontSize = Type.section,
                 fontWeight = FontWeight.Medium
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(Space.loose),
+                    verticalArrangement = Arrangement.spacedBy(Space.normal)
                 ) {
-                    SummaryRow(label = "Date:", value = viewModel.tempDate)
-                    SummaryRow(label = "Time:", value = viewModel.tempTime)
-                    SummaryRow(label = "Blood Glucose:", value = "${viewModel.tempGlucose} mg/dL")
-                    SummaryRow(label = "Carbohydrates:", value = "${viewModel.tempCarbs} units")
-                    SummaryRow(label = "Basis (Long-Acting):", value = "${viewModel.tempBasis} units")
+                    SummaryRow(label = "Date", value = viewModel.tempDate)
+                    SummaryRow(label = "Time", value = viewModel.tempTime)
+                    SummaryRow(label = "Glucose", value = "${viewModel.tempGlucose} mg/dL")
+                    SummaryRow(label = "Carbs", value = "${viewModel.tempCarbs} units")
+                    SummaryRow(label = "Basis", value = "${viewModel.tempBasis} units")
                 }
             }
 
@@ -117,43 +118,53 @@ fun ConfirmDataScreen(
 
                         is DoseRecommendation.Available -> {
                             if (recommendation.inRange) {
+                                // The dose is the answer this screen exists to give, so it is the one
+                                // thing set large; everything qualifying it stays body-sized.
+                                Row(
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.spacedBy(Space.tight)
+                                ) {
+                                    Text(
+                                        text = formatUnits(recommendation.suggestedUnits),
+                                        fontSize = 30.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "${unitLabel(recommendation.suggestedUnits)} suggested",
+                                        fontSize = Type.body,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = Space.tight)
+                                    )
+                                }
                                 SummaryRow(
-                                    label = "Suggested bolus:",
-                                    value = "${formatUnits(recommendation.suggestedUnits)} unit/s"
-                                )
-                                SummaryRow(
-                                    label = "Predicted glucose after 4 h (primary):",
+                                    label = "Predicted after 4 h",
                                     value = "${recommendation.predictedGlucoseMgDl.toInt()} mg/dL"
                                 )
                                 recommendation.predictedGlucose3hMgDl?.let { threeHour ->
                                     SummaryRow(
-                                        label = "Predicted glucose after 3 h:",
+                                        label = "Predicted after 3 h",
                                         value = "${threeHour.toInt()} mg/dL"
                                     )
                                 }
                             } else {
-                                Text(
-                                    text = "No dose brings you into 90-140 mg/dL",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.error
+                                StatusDot(
+                                    color = StateColors.waiting,
+                                    label = "No dose brings you into 90-140 mg/dL"
                                 )
                                 Text(
-                                    text = "Closest with ${formatUnits(recommendation.suggestedUnits)} unit/s: " +
+                                    text = "Closest with ${formatUnits(recommendation.suggestedUnits)} " +
+                                        "${unitLabel(recommendation.suggestedUnits)}: " +
                                         "${recommendation.predictedGlucoseMgDl.toInt()} mg/dL predicted. " +
                                         "Do not treat this as a recommendation.",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.error
+                                    fontSize = Type.body,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
                             // Phase-5 guard: an extrapolation has to say so, whatever it suggests.
                             recommendation.coverageWarning?.let { warning ->
-                                Text(
-                                    text = warning,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.error
-                                )
+                                StatusDot(color = StateColors.waiting, label = warning)
                             }
 
                             // A dose without its error is the most misleading thing this screen can
@@ -162,7 +173,7 @@ fun ConfirmDataScreen(
                             viewModel.modelQuality?.let { quality ->
                                 Text(
                                     text = quality,
-                                    fontSize = 12.sp,
+                                    fontSize = Type.label,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -173,7 +184,7 @@ fun ConfirmDataScreen(
                     Text(
                         text = "Not medical advice. This is an experiment on your own data, its " +
                             "accuracy is unproven - verify every dose yourself.",
-                        fontSize = 12.sp,
+                        fontSize = Type.label,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -182,8 +193,8 @@ fun ConfirmDataScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Now enter the insulin you actually injected:",
-                fontSize = 16.sp,
+                text = "What you injected",
+                fontSize = Type.section,
                 fontWeight = FontWeight.Medium
             )
 
@@ -194,6 +205,10 @@ fun ConfirmDataScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Pushes the two buttons to the bottom: with the cards above them the column otherwise
+            // ends in a void, which reads as a rendering fault rather than as breathing room.
+            Spacer(modifier = Modifier.weight(1f))
 
             Button(
                 onClick = {
@@ -221,8 +236,8 @@ fun ConfirmDataScreen(
 
 @Composable
 fun SummaryRow(label: String, value: String) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = label, fontSize = 12.sp, color = Color.Gray)
-        Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-    }
+    KeyValueRow(label = label, value = value)
 }
+
+/** "1 unit", not "1 units": the number comes from formatUnits, the noun follows it. */
+internal fun unitLabel(units: Double): String = if (units == 1.0) "unit" else "units"

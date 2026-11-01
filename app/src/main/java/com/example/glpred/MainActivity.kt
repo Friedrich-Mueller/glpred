@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
@@ -28,6 +29,7 @@ import com.example.glpred.ui.EnterDataScreen
 import com.example.glpred.ui.FetchDataScreen
 import com.example.glpred.ui.FinalConfirmScreen
 import com.example.glpred.ui.HistoryScreen
+import com.example.glpred.ui.Space
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,33 +113,41 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(Space.normal, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(
                 onClick = onNewEntryClick,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(text = "New Entry")
             }
 
             Button(
                 onClick = onFetchDataClick,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(text = "Fetch Data")
             }
 
             Button(
                 onClick = onHistoryClick,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(text = "History")
             }
 
             Button(
                 onClick = onAnalysisClick,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(text = "Model Performance Analysis")
             }
@@ -145,7 +155,9 @@ fun MainScreen(
             Button(
                 onClick = onTrainClick,
                 enabled = !isTraining,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(text = if (isTraining) "Training..." else "Train Model")
             }

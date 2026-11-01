@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -88,7 +89,7 @@ fun HistoryScreen(
                 rows.isEmpty() -> Text(
                     text = "No meals recorded yet. Each entry you save appears here with its " +
                         "prediction and, once the CGM import covers it, what actually happened.",
-                    fontSize = 14.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -142,27 +143,67 @@ private fun HistoryCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(Space.loose),
+            verticalArrangement = Arrangement.spacedBy(Space.normal)
         ) {
-            Text(
-                text = "${entry.formattedDate}   ${entry.formattedTime}",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
+            // Date, state and injected dose share one row: the dose is what the card is about, so it
+            // belongs where the eye lands first rather than buried in a sentence below.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.tight)) {
+                    Text(
+                        text = "${entry.formattedDate}   ${entry.formattedTime}",
+                        fontSize = Type.section,
+                        fontWeight = FontWeight.Medium
+                    )
+                    StatusDot(stateColor(row.state), stateLabel(row.state))
+                }
+                // Same shape as the Carbs column: a small label over its value, right-aligned, so the
+                // two numbers on the card are read the same way. An unlabelled "6 u" in the corner
+                // had no anchor and floated.
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(Space.tight)
+                ) {
+                    Text(
+                        text = "Injected",
+                        fontSize = Type.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${formatUnits(entry.bolus)} u",
+                        fontSize = Type.body
+                    )
+                }
+            }
 
-            Text(text = stateLabel(row.state), fontSize = 13.sp, color = stateColor(row.state))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Starting", fontSize = Type.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${entry.glucose} mg/dL", fontSize = Type.body)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Carbs", fontSize = Type.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "${formatUnits(entry.carbs.toDouble())} CU",
+                        fontSize = Type.body
+                    )
+                }
+            }
 
             Text(
-                text = "${entry.glucose} mg/dL starting  ·  " +
-                    "${formatUnits(entry.carbs.toDouble())} carb unit/s  ·  basis ${entry.basis} u",
-                fontSize = 13.sp
-            )
-
-            Text(
-                text = "Injected ${formatUnits(entry.bolus)} u" +
-                    (entry.suggestedBolus?.let { "  ·  model suggested ${formatUnits(it)} u" } ?: ""),
-                fontSize = 13.sp
+                text = "Basis ${entry.basis} u" +
+                    (entry.suggestedBolus?.let {
+                        "   ·   model suggested ${formatUnits(it)} u"
+                    } ?: ""),
+                fontSize = Type.body,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // The prediction is for the injected dose, so it and the actual value describe the same
@@ -173,44 +214,41 @@ private fun HistoryCard(
                 predicted != null && actual != null -> Text(
                     text = "4 h: predicted ${predicted.roundToInt()}  →  " +
                         "actual ${actual.roundToInt()} mg/dL",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 actual != null -> Text(
                     text = "4 h actual: ${actual.roundToInt()} mg/dL",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 predicted != null -> Text(
                     text = "4 h: predicted ${predicted.roundToInt()} mg/dL, no CGM value yet",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 else -> Text(
                     text = "No model available for a prediction",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             // Plain clickable text rather than TextButtons: a TextButton carries a 48 dp minimum
             // height, which is most of what made each card so tall at the bottom.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(top = 2.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.loose)) {
                 Text(
                     text = "Edit",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { editing = true }
                 )
                 Text(
                     text = "Delete",
-                    fontSize = 13.sp,
+                    fontSize = Type.body,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.clickable { confirmingDelete = true }
                 )
@@ -312,7 +350,9 @@ private fun stateLabel(state: HistoryRow.State): String = when (state) {
 
 @Composable
 private fun stateColor(state: HistoryRow.State) = when (state) {
-    HistoryRow.State.TRAINABLE -> MaterialTheme.colorScheme.primary
+    // Green because this meal is contributing; amber because an import is an action the user can
+    // take now; neutral because waiting needs nothing but time. Red is reserved for Delete.
+    HistoryRow.State.TRAINABLE -> StateColors.model
     HistoryRow.State.TOO_EARLY -> MaterialTheme.colorScheme.onSurfaceVariant
-    HistoryRow.State.NEEDS_IMPORT -> MaterialTheme.colorScheme.error
+    HistoryRow.State.NEEDS_IMPORT -> StateColors.waiting
 }

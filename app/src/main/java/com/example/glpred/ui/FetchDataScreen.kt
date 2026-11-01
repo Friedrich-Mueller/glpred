@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -23,6 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -105,25 +108,40 @@ fun FetchDataScreen(
                 val first = span.firstMs
                 val last = span.lastMs
                 if (first != null && last != null) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "Stored CGM data:",
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "From ${formatWallClock(first)}",
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = "To ${formatWallClock(last)}",
-                            fontSize = 15.sp
-                        )
-                        Text(
-                            text = String.format(Locale.US, "%,d readings", span.readings),
-                            fontSize = 14.sp
-                        )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(Space.loose),
+                            verticalArrangement = Arrangement.spacedBy(Space.normal)
+                        ) {
+                            Text(
+                                text = "Stored CGM data",
+                                fontSize = Type.section,
+                                fontWeight = FontWeight.Medium
+                            )
+                            KeyValueRow("From", formatWallClock(first))
+                            KeyValueRow("To", formatWallClock(last))
+                            KeyValueRow(
+                                "Readings",
+                                String.format(Locale.US, "%,d", span.readings)
+                            )
+                        }
                     }
                 }
+            }
+
+            // Empty state: without this the screen is a heading, a sentence and a button, and looks
+            // like it failed to load rather than like nothing has been imported yet.
+            if (viewModel.storedSpan == null && !viewModel.isImporting) {
+                Text(
+                    text = "No CGM data stored yet. Meals stay untrainable until an export covering " +
+                        "them is imported.",
+                    fontSize = Type.body,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             viewModel.errorMessage?.let { errorMessage ->
