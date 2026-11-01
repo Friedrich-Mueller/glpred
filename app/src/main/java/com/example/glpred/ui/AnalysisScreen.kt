@@ -147,7 +147,7 @@ private fun RatioCard(analysis: ModelVsHuman) {
 private fun ConvergenceCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Model vs User performance?")
+            SectionTitle("Model vs User performance")
             val score = analysis.counterfactual
             if (!score.hasEvidence) {
                 Line(
