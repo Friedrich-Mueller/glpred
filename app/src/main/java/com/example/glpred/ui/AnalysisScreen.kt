@@ -1,11 +1,15 @@
 package com.example.glpred.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -128,16 +132,17 @@ private fun RatioCard(analysis: ModelVsHuman) {
             if (rows.isEmpty()) {
                 Line("No meals with carb units recorded yet.", muted = true)
             } else {
-                rows.forEach { point ->
-                    val model = point.modelUnitsPerCarb
-                    Text(
-                        text = String.format(Locale.US, "%02d:00", point.hourOfDay) +
-                            "   you ${formatRatio(point.youUnitsPerCarb)}" +
-                            "   model ${model?.let { formatRatio(it) } ?: "no suggestion"}" +
-                            "   (${point.meals} meal${if (point.meals == 1) "" else "s"})",
-                        fontSize = 13.sp
-                    )
-                }
+                RatioChart(
+                    yourPoints = rows,
+                    modelCurve = analysis.modelCurve,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Line(
+                    "Your dots are meals you actually ate; the model's line is its answer for a " +
+                        "typical meal of yours at that hour. Where the two separate, you and the " +
+                        "model disagree about how much a carb unit needs.",
+                    muted = true
+                )
             }
         }
     }
@@ -156,8 +161,8 @@ private fun OutcomeCard(analysis: ModelVsHuman) {
                     muted = true
                 )
             } else {
-                Line("Followed the suggestion: ${describe(outcome.followed)}")
-                Line("Went your own way: ${describe(outcome.notFollowed)}")
+                BucketBar("Followed the suggestion", outcome.followed)
+                BucketBar("Went your own way", outcome.notFollowed)
                 Line(
                     "Correlation, not proof: you decide when to follow the model, and probably " +
                         "follow it on meals you already feel confident about.",
@@ -168,14 +173,41 @@ private fun OutcomeCard(analysis: ModelVsHuman) {
     }
 }
 
-private fun describe(bucket: ModelVsHuman.Bucket): String {
-    val share = bucket.inBandShare ?: return "no meals"
-    val percent = (share * 100).roundToInt()
-    return "${bucket.inBand} of ${bucket.meals} in band ($percent %)"
+/**
+ * One bucket of meals with the share that landed in band: the number, and a bar drawn from the same
+ * share so the two cannot disagree. An empty bucket says "no meals" rather than drawing a 0 % bar,
+ * which would look like evidence of failure instead of absence of evidence.
+ */
+@Composable
+private fun BucketBar(label: String, bucket: ModelVsHuman.Bucket) {
+    val share = bucket.inBandShare
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = if (share == null) {
+                "$label: no meals"
+            } else {
+                "$label: ${bucket.inBand} of ${bucket.meals} in band " +
+                    "(${(share * 100).roundToInt()} %)"
+            },
+            fontSize = 13.sp
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+        ) {
+            if (share != null && share > 0.0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(share.toFloat())
+                        .height(8.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+                )
+            }
+        }
+    }
 }
-
-/** Two decimals is enough to see a ratio move; three would read as false precision. */
-private fun formatRatio(value: Double): String = String.format(Locale.US, "%.2f u/CU", value)
 
 @Composable
 private fun SectionTitle(text: String) {

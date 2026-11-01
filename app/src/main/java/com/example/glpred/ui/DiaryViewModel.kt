@@ -25,6 +25,7 @@ import com.example.glpred.preprocessing.HistoryRow
 import com.example.glpred.preprocessing.MealHistory
 import com.example.glpred.preprocessing.TrainingSample
 import com.example.glpred.preprocessing.TrainingSamples
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -156,12 +157,50 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     val series = CgmSeries.from(cgmDao.getAllReadings())
                     val samples = TrainingSamples.build(entries, series)
-                    ModelVsHuman.build(entries, samples, LeaveOneOut.rmse4h(samples)?.rmse)
+                    ModelVsHuman.build(
+                        entries = entries,
+                        samples = samples,
+                        validationErrorMgDl = LeaveOneOut.rmse4h(samples)?.rmse,
+                        modelCurve = modelCurveByHour(entries)
+                    )
                 }
             }
             analysis = result
             isAnalysisLoading = false
         }
+    }
+
+    /**
+     * The model's dose per carb unit at every hour of the day, obtained by asking it for a reference
+     * meal at each one. Entry points alone cannot give a continuous curve - they only exist where the
+     * user actually ate - and re-deriving the curve from the coefficients would mean dividing
+     * standardised coefficients by feature scales, which is an interpretation rather than a record of
+     * what the model says. The reference meal is the median of the user's own meals.
+     */
+    private suspend fun modelCurveByHour(entries: List<DiaryEntity>): List<Double?> {
+        val withCarbs = entries.filter { it.carbs > 0f }
+        if (withCarbs.isEmpty()) return emptyList()
+        val carbs = median(withCarbs.map { it.carbs.toDouble() })
+        if (carbs <= 0.0) return emptyList()
+        val glucose = median(entries.map { it.glucose.toDouble() }).roundToInt()
+        val basis = median(entries.map { it.basis.toDouble() }).roundToInt()
+
+        val advisor = ModelDoseAdvisor(database.trainedModelDao())
+        val dayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault())
+        return (0 until 24).map { hour ->
+            val timestamp = dayStart.plusHours(hour.toLong()).toInstant().toEpochMilli()
+            val recommendation = runCatching {
+                advisor.recommend(DiaryEntryInput(timestamp, glucose, carbs.toFloat(), basis))
+            }.getOrNull() as? DoseRecommendation.Available
+            recommendation?.let { it.suggestedUnits / carbs }
+        }
+    }
+
+    private fun median(values: List<Double>): Double {
+        if (values.isEmpty()) return 0.0
+        val sorted = values.sorted()
+        val middle = sorted.size / 2
+        return if (sorted.size % 2 == 0) (sorted[middle - 1] + sorted[middle]) / 2 else sorted[middle]
     }
 
     // ---------------------------------------------------------------- draft entry

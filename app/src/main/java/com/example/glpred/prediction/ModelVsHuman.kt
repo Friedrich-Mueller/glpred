@@ -20,7 +20,12 @@ data class ModelVsHuman(
     val mealsWithSuggestion: Int,
     val labelledMeals: Int,
     /** Leave-one-out error over all labelled meals, or null when there are too few. */
-    val validationErrorMgDl: Double?
+    val validationErrorMgDl: Double?,
+    /**
+     * The model's own dose per carb unit at each hour of the day (index = hour, 0..23), from asking
+     * it for a reference meal. Empty when no model exists or no meal has carb units recorded.
+     */
+    val modelCurve: List<Double?> = emptyList()
 ) {
 
     /**
@@ -59,7 +64,8 @@ data class ModelVsHuman(
         fun build(
             entries: List<DiaryEntity>,
             samples: List<TrainingSample>,
-            validationErrorMgDl: Double? = null
+            validationErrorMgDl: Double? = null,
+            modelCurve: List<Double?> = emptyList()
         ): ModelVsHuman {
             val labelsByEntry = samples.associateBy { it.entryId }
 
@@ -105,7 +111,8 @@ data class ModelVsHuman(
                 mealsRecorded = entries.size,
                 mealsWithSuggestion = entries.count { it.suggestedBolus != null },
                 labelledMeals = samples.count { it.after4h != null },
-                validationErrorMgDl = validationErrorMgDl
+                validationErrorMgDl = validationErrorMgDl,
+                modelCurve = modelCurve
             )
         }
     }
