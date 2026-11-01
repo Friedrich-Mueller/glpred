@@ -82,7 +82,7 @@ than a bug — it means your ratio does not vary enough to be resolved yet. Desi
 | Time-coverage warning for unobserved hours + in-app disclaimer | done |
 | History list with pending/labelled state, suggestion vs injected, prediction vs actual | done |
 | Settings (target band, horizon) | deliberately dropped for v1 |
-| Unit tests | 28, covering loader parity, preprocessing, model math, LOO, coverage, history states, time interactions, pipeline |
+| Unit tests | 29, covering loader parity, preprocessing, model math, LOO, coverage, history states, time interactions, pipeline |
 
 Everything described above is implemented. A meal is only a training row once the imported CGM
 covers the moment four hours after it; the history screen shows exactly which meals have reached
