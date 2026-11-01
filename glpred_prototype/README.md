@@ -29,7 +29,7 @@ The android app allows the input (and recording via a SQLite database) of 5 valu
 ## The 2021 attempt
 
 An earlier, abandoned prototype (working title "IITQD") — its raw entry form and the confirmation
-screen it led to. The screenshots are kept as a record of that attempt, not as working code.
+screen it led to.
 
 <table>
   <tr>
@@ -38,12 +38,6 @@ screen it led to. The screenshots are kept as a record of that attempt, not as w
   </tr>
 </table>
 
-What the screenshots also record is a data problem: every field carries a placeholder
-(1/11/2021, 1:11, 111 mg/dL, 1 carb unit, 1 bolus unit, 11 basis units). The same habit is visible in
-this prototype's notebook, where the five recorded rows held constant carb, bolus and basis values —
-so four of six features had zero variance and the model was effectively trained on the time of day
-alone. That is one of the reasons the first attempt was shelved, and why the current app asks for a
-typed, validated entry rather than a bare form.
 
 ## Disclaimer
 
