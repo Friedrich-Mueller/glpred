@@ -36,6 +36,29 @@ object LeaveOneOut {
         lambda: Double = RidgeModel.DEFAULT_LAMBDA
     ): Result? = validate(samples, lambda, { it.after3h }, { model, features -> model.predict3h(features) })
 
+    /**
+     * One out-of-sample prediction per row, keyed by entry id, for the 4 h target.
+     *
+     * Exposed separately from [rmse4h] because the model-vs-habit comparison scores each meal
+     * individually. Using the fitted model's own predictions there would let it grade answers it was
+     * trained on, which is the one thing this comparison exists to avoid.
+     */
+    fun predict4h(
+        samples: List<TrainingSample>,
+        lambda: Double = RidgeModel.DEFAULT_LAMBDA
+    ): Map<Long, Double> {
+        val usable = samples.filter { it.after4h != null }
+        if (usable.size < RidgeModel.MIN_SAMPLES + 1) return emptyMap()
+
+        val predictions = LinkedHashMap<Long, Double>()
+        for (heldOut in usable.indices) {
+            val trainingRows = usable.filterIndexed { index, _ -> index != heldOut }
+            val model = RidgeModel.fit(trainingRows, lambda) ?: continue
+            predictions[usable[heldOut].entryId] = model.predict4h(usable[heldOut].features())
+        }
+        return predictions
+    }
+
     private fun validate(
         samples: List<TrainingSample>,
         lambda: Double,

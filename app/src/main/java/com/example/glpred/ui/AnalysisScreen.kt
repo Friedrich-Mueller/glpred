@@ -91,7 +91,7 @@ fun AnalysisScreen(
                 else -> {
                     CountsCard(current)
                     RatioCard(current)
-                    OutcomeCard(current)
+                    ConvergenceCard(current)
                 }
             }
         }
@@ -149,23 +149,44 @@ private fun RatioCard(analysis: ModelVsHuman) {
 }
 
 @Composable
-private fun OutcomeCard(analysis: ModelVsHuman) {
+private fun ConvergenceCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Did following the model land you in 90-140?")
-            val outcome = analysis.outcome
-            if (!outcome.hasEvidence) {
+            SectionTitle("Is the model beating your rule of thumb?")
+            val convergence = analysis.convergence
+            if (convergence.meals == 0) {
                 Line(
-                    "Nothing to compare yet: this needs meals that carried a suggestion and whose " +
-                        "4 h value has since been verified by an import.",
+                    "Nothing to score yet. Each verified meal is scored twice against the same " +
+                        "outcome: once by the model, once by what habit would have predicted.",
                     muted = true
                 )
             } else {
-                BucketBar("Followed the suggestion", outcome.followed)
-                BucketBar("Went your own way", outcome.notFollowed)
+                val model = convergence.modelMeanError?.roundToInt() ?: 0
+                val baseline = convergence.baselineMeanError?.roundToInt() ?: 0
+                Text(
+                    text = "Model: misses the 4 h value by ${model} mg/dL on average, over " +
+                        "${convergence.meals} meal${if (convergence.meals == 1) "" else "s"}",
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "Habit: misses it by ${baseline} mg/dL. The model was closer on " +
+                        "${convergence.modelWins} of ${convergence.meals}.",
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = when {
+                        convergence.meals < 10 ->
+                            "Too few meals to call it either way. This is the line to watch."
+                        model < baseline -> "The model is currently the better bet."
+                        else -> "Your habit is still ahead."
+                    },
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
                 Line(
-                    "Correlation, not proof: you decide when to follow the model, and probably " +
-                        "follow it on meals you already feel confident about.",
+                    "Habit is modelled as \"a meal dosed the usual way leaves you where you " +
+                        "started\", which is the assumption behind dosing by feel. Both are scored " +
+                        "against reality, so neither grades its own homework.",
                     muted = true
                 )
             }

@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.glpred.prediction.ModelVsHuman
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.round
 
 /**
  * Two curves over the 24-hour clock: your dose per carb unit, and the model's.
@@ -45,14 +48,30 @@ fun RatioChart(
     // and a solid look-alike would read as a second measurement rather than a different kind of claim.
     val modelColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val allValues = yourPoints.map { it.youUnitsPerCarb } +
         modelCurve.filterNotNull() +
         yourPoints.mapNotNull { it.modelUnitsPerCarb }
-    val maxY = ((allValues.maxOrNull() ?: 1.0) * 1.2).coerceAtLeast(0.5)
+    val step = niceStep(allValues.maxOrNull() ?: 1.0)
+    val maxY = (ceil(((allValues.maxOrNull() ?: 1.0) * 1.15) / step) * step).coerceAtLeast(step)
 
     Column(modifier = modifier) {
+        Row {
+            // Tick labels stay real text: a canvas at this size cannot draw a legible one.
+            Column(
+                modifier = Modifier
+                    .height(170.dp)
+                    .padding(end = 6.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(formatTick(maxY), fontSize = 9.sp, color = labelColor)
+                Text(formatTick(maxY / 2), fontSize = 9.sp, color = labelColor)
+                Text(formatTick(0.0), fontSize = 9.sp, color = labelColor)
+            }
+            Column {
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,7 +88,7 @@ fun RatioChart(
                 val gx = x(hour * 60)
                 drawLine(gridColor, Offset(gx, 0f), Offset(gx, h), strokeWidth = 1f)
             }
-            drawLine(gridColor, Offset(0f, h), Offset(w, h), strokeWidth = 1f)
+            drawLine(gridColor, Offset(0f, y(maxY / 2)), Offset(w, y(maxY / 2)), strokeWidth = 1f)
 
             // The model: continuous across the whole day.
             val modelPoints = modelCurve.withIndex().mapNotNull { (hour, value) ->
@@ -91,12 +110,18 @@ fun RatioChart(
                 drawLine(youColor, yourOffsets[i - 1], yourOffsets[i], strokeWidth = 3f)
             }
             yourOffsets.forEach { drawCircle(youColor, radius = 6f, center = it) }
+
+            // Axes last, so they sit on top of everything and cannot be mistaken for a data line.
+            drawLine(axisColor, Offset(0f, 0f), Offset(0f, h), strokeWidth = 2f)
+            drawLine(axisColor, Offset(0f, h), Offset(w, h), strokeWidth = 2f)
+        }
+            }
         }
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp)
+                .padding(top = 4.dp, start = 18.dp)
         ) {
             Text("00:00", fontSize = 10.sp, color = labelColor)
             Box(modifier = Modifier.weight(1f))
@@ -144,4 +169,19 @@ private fun formatModelRange(curve: List<Double?>): String {
     val values = curve.filterNotNull()
     if (values.isEmpty()) return "no model"
     return String.format(Locale.US, "%.2f-%.2f u/CU", values.min(), values.max())
+}
+
+/** A round axis step, so the printed ticks are numbers a human would have chosen. */
+private fun niceStep(maxValue: Double): Double = when {
+    maxValue <= 0.5 -> 0.1
+    maxValue <= 1.2 -> 0.25
+    maxValue <= 3.0 -> 0.5
+    maxValue <= 6.0 -> 1.0
+    else -> 2.0
+}
+
+private fun formatTick(value: Double): String = when {
+    abs(value - round(value)) < 1e-9 -> String.format(Locale.US, "%.0f", value)
+    abs(value * 10 - round(value * 10)) < 1e-9 -> String.format(Locale.US, "%.1f", value)
+    else -> String.format(Locale.US, "%.2f", value)
 }

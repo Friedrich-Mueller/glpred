@@ -25,7 +25,9 @@ data class ModelVsHuman(
      * The model's own dose per carb unit at each hour of the day (index = hour, 0..23), from asking
      * it for a reference meal. Empty when no model exists or no meal has carb units recorded.
      */
-    val modelCurve: List<Double?> = emptyList()
+    val modelCurve: List<Double?> = emptyList(),
+    /** Model against rule of thumb, meal by meal, in time order. */
+    val convergence: Convergence = Convergence(emptyList())
 ) {
 
     /**
@@ -51,6 +53,48 @@ data class ModelVsHuman(
         val hasEvidence: Boolean get() = total > 0
     }
 
+    /**
+     * Chronological head-to-head, one entry per labelled meal: how wrong the model was about the
+     * glucose that followed, against how wrong a rule of thumb was.
+     *
+     * The baseline is "a meal dosed by habit leaves you where you started", i.e. it forecasts the
+     * starting glucose. That is what the conventional approach implicitly assumes, and it is scored
+     * against the same observed outcome as the model - so the two are comparable, and neither gets to
+     * grade its own homework.
+     */
+    data class Convergence(val points: List<Point>) {
+
+        data class Point(
+            val mealAt: Long,
+            val modelErrorMgDl: Double,
+            val baselineErrorMgDl: Double
+        )
+
+        val meals: Int get() = points.size
+
+        val modelMeanError: Double?
+            get() = if (points.isEmpty()) null else points.map { it.modelErrorMgDl }.average()
+
+        val baselineMeanError: Double?
+            get() = if (points.isEmpty()) null else points.map { it.baselineErrorMgDl }.average()
+
+        /** Meals on which the model was closer to the truth than the rule of thumb. */
+        val modelWins: Int get() = points.count { it.modelErrorMgDl < it.baselineErrorMgDl }
+
+        /** Running mean error after each meal, so a trend can be drawn rather than a single number. */
+        fun runningModelError(): List<Double> = running { it.modelErrorMgDl }
+
+        fun runningBaselineError(): List<Double> = running { it.baselineErrorMgDl }
+
+        private fun running(selector: (Point) -> Double): List<Double> {
+            var total = 0.0
+            return points.mapIndexed { index, point ->
+                total += selector(point)
+                total / (index + 1)
+            }
+        }
+    }
+
     data class Bucket(val meals: Int, val inBand: Int) {
         /** Null rather than a fake 0 % when nothing is behind it. */
         val inBandShare: Double? get() = if (meals == 0) null else inBand.toDouble() / meals
@@ -65,7 +109,12 @@ data class ModelVsHuman(
             entries: List<DiaryEntity>,
             samples: List<TrainingSample>,
             validationErrorMgDl: Double? = null,
-            modelCurve: List<Double?> = emptyList()
+            modelCurve: List<Double?> = emptyList(),
+            /**
+             * Out-of-sample prediction per entry id (see [LeaveOneOut.predict4h]). Deliberately not
+             * the fitted model: scoring it on its own training rows would show a perfect model.
+             */
+            looPredictions: Map<Long, Double> = emptyMap()
         ): ModelVsHuman {
             val labelsByEntry = samples.associateBy { it.entryId }
 
@@ -107,6 +156,20 @@ data class ModelVsHuman(
                 outcome = OutcomeStats(
                     followed = bucket { abs(it.first.bolus - it.second) <= FOLLOW_TOLERANCE_UNITS },
                     notFollowed = bucket { abs(it.first.bolus - it.second) > FOLLOW_TOLERANCE_UNITS }
+                ),
+                convergence = Convergence(
+                    samples
+                        .filter { it.after4h != null }
+                        .sortedBy { it.timestampMs }
+                        .mapNotNull { sample ->
+                            val predicted = looPredictions[sample.entryId] ?: return@mapNotNull null
+                            val actual = sample.after4h ?: return@mapNotNull null
+                            Convergence.Point(
+                                mealAt = sample.timestampMs,
+                                modelErrorMgDl = abs(predicted - actual),
+                                baselineErrorMgDl = abs(sample.glucose - actual)
+                            )
+                        }
                 ),
                 mealsRecorded = entries.size,
                 mealsWithSuggestion = entries.count { it.suggestedBolus != null },

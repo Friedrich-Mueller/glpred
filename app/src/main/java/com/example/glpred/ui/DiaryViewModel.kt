@@ -161,7 +161,8 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         entries = entries,
                         samples = samples,
                         validationErrorMgDl = LeaveOneOut.rmse4h(samples)?.rmse,
-                        modelCurve = modelCurveByHour(entries)
+                        modelCurve = modelCurveByHour(entries),
+                        looPredictions = LeaveOneOut.predict4h(samples)
                     )
                 }
             }
