@@ -16,23 +16,13 @@ for years, so I finished it in 2026.
 
 ## Table of Contents
 
-- [<u>The problem</u>](#the-problem)
-- [<u>The loop</u>](#the-loop)
-- [<u>Benchmarking Model vs Patient</u>](#benchmarking-model-vs-patient)
-- [<u>Screenshots</u>](#screenshots)
+- [<u>The App</u>](#glpred)
 - [<u>Data and ML</u>](#data-and-ml)
     - [<u>Data requirements</u>](#data-requirements)
     - [<u>The model</u>](#the-model)
 - [<u>Build and test</u>](#build-and-test)
-    - [<u>Prerequisites</u>](#prerequisites)
-    - [<u>Building and running</u>](#building-and-running)
-    - [<u>Tests</u>](#tests)
-    - [<u>Project layout</u>](#project-layout)
-    - [<u>Development status</u>](#development-status)
 - [<u>Privacy and legal</u>](#privacy-and-legal)
-    - [<u>Privacy</u>](#privacy)
-    - [<u>Disclaimer</u>](#disclaimer)
-    - [<u>License</u>](#license)
+
 
 ## The problem
 
