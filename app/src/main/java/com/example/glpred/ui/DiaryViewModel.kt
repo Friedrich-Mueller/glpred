@@ -344,8 +344,26 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                     predictedGlucose = suggestion?.predictedGlucoseMgDl
                 )
             )
+            // Navigate first, then forget: the final-confirm card is still composed while this
+            // runs, so emptying the draft before the destination changes would flash blank values.
             onSuccess()
+            clearDraft()
         }
+    }
+
+    /**
+     * Forgets the saved entry. The enter screen seeds its fields from these values, so without this
+     * the next meal starts pre-filled with the last one's glucose, carbs and basis - typing into a
+     * pre-filled form is how 120111 mg/dL got entered and stored on 03-11-2026.
+     */
+    private fun clearDraft() {
+        tempDate = ""
+        tempTime = ""
+        tempGlucose = ""
+        tempCarbs = ""
+        tempBasis = ""
+        actualBolusStr = ""
+        recommendation = null
     }
 
     // ---------------------------------------------------------------- training
