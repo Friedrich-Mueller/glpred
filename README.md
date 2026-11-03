@@ -40,57 +40,48 @@ estimate for every hour that also knows which meals produced it.
 
 ## How it works
 
-1. **<ins>Create diary entries</ins>**
+1. **<ins>Record the meal</ins>**
 
-   Date, time, blood glucose, carbs and long-acting insulin are recorded. The short-acting dose is
-   deliberately absent at this point, because the app is about to propose one.
+   The user enters date, time, blood glucose, carbs and long-acting insulin. The short-acting dose
+   is missing on purpose, because the app is about to propose it.
 2. **<ins>A dose is proposed</ins>**
 
-   Doses from 1 to 25 units in half-unit steps are run through the model, and the one whose
-   predicted four-hour glucose comes closest to 90 mg/dL is shown. When no dose reaches the 90 to
-   140 band, the screen states that instead of presenting the nearest miss as advice.
+   Every half unit from 1 to 25 is run through the model, and the dose whose predicted four-hour
+   glucose lands closest to 90 mg/dL is shown. If nothing lands in the 90 to 140 band, the screen
+   says so instead of dressing up the closest miss as advice.
 
-3. **<ins>Actual dose and predicted dose are stored.</ins>**
+3. **<ins>The injected dose is entered</ins>**
 
-   That pair is what the analysis screen later uses to compare the model's judgement with the
-   patient's.
+   The app keeps both numbers, the proposed dose and the one actually injected, side by side.
 
-4. **<ins>Import CGM readings & train the model</ins>**
+4. **<ins>Import CGM readings and train the model</ins>**
 
-   The LibreView CSV is the only route for glucose data into the app; those readings are connected
-   to the meal data. The resulting training data is used to train a Ridge regression model as soon
-   as the import lands.
+   The LibreView CSV is the only route for glucose data into the app. Importing it pairs the
+   recorded meals with what happened afterwards, and fits the model in the same step.
 
-5. **<ins>_Optional_: Review diary history</ins>**
+5. **<ins>_Optional_: fix the diary</ins>**
 
-   Delete or make changes to entries. (Results in a stale model that should be retrained. No
-   re-import needed.)
+   Entries can be edited or deleted. The model then reports itself as out of date and wants
+   retraining; no re-import is needed.
 
-6. **<ins>_Optional_: Review the model's performance</ins>**
+6. **<ins>_Optional_: read the analysis screen</ins>**
 
-   A graph showing the model's learned ICR across the span of the day, as well as indicators for when
-   the model starts to outperform the user's 'predictions'.
+   How far each dose landed from 90 mg/dL - the suggested one against the injected one - over the
+   whole history and again over the last twenty meals, plus the learned carb ratio across the day.
 
-A meal only becomes training data once an import covers the four hours after it, which is why a
+A meal only counts as training data once an import reaches four hours past it, which is why a
 fresh install has nothing to suggest from and says as much. Three labelled meals are required for a 
-model to exist. The validation error beside each dose is what tells you how much that number is
-worth.
+model to exist. Every suggestion is shown with the model's validation error, because that
+number is what says how much the suggestion is worth.
 
-## Benchmarking Model vs Patient
+## Benchmarking Model vs User
 
-Every suggestion is stored next to the dose actually injected, so one comparison is measurable: with
-the same meal, would the model's dose have landed closer to 90 mg/dL than the user's dose did?
+The model is benchmarked against the user's performance. One graph shows the learned ICR values, and
+another shows how the model performs against the user - how far each of the two doses landed from the
+target of 90 mg/dL - which indicates when the model begins to outperform the user. That point is where
+the model's predictions become more accurate than the user's would have been.
 
-Mealtime dosing collapses to `G4 = G0 + ISF*carbs - ISF*B`, so changing only the dose shifts the
-outcome by `ISF * (chosen - taken)` and the carb side cancels. Insulin sensitivity alone decides it,
-estimated separately for each meal. The result is a probability over the plausible range of that
-sensitivity, not a point value presented as certainty.
-
-The comparison stays quiet while the evidence is thin: when the estimated sensitivity is smaller
-than its own error bar, every meal reads undecided, which is what a young model looks like. A dose
-that would undershoot badly is never scored as close, since landing below 90 counts against it
-harder than landing above. One limitation is structural: the sensitivity comes from the same model,
-so a bias in its bolus coefficient biases every verdict the same way.
+<img src="images/analysis.png" width="270" alt="Analysis screen with four cards: Your data, Insulin-Carb-Ratio throughout the day, Benchmarking Model vs User with two running-average lines of distance from target over the whole history, and Last 20 with the same two lines rescaled to the recent window">
 
 ## Screenshots
 
@@ -103,7 +94,7 @@ so a bias in its bolus coefficient biases every verdict the same way.
   <tr>
     <td align="center" width="33%"><img src="images/history.png" width="230" alt="History list of meal cards: date and time with the injected dose on the right, a coloured status dot for trainable or pending, the starting glucose and carbs as two labelled columns, and the predicted against the actual 4 h value"><br><sub><b>History</b><br>Which meals are trainable, what actually happened, and a way to fix a typo</sub></td>
     <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data and train screen: the file picker, a Stored CGM data card with the first and last reading and 280,142 rows, and a Model card marked out of date above a retrain button"><br><sub><b>Import and train</b><br>The import refits the model; the card says when the fit is out of date</sub></td>
-    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen with three cards. Your data: 8 meals recorded, 5 carry a suggestion, 5 have a verified 4 h value, average misprediction 33 mg/dL. Insulin-Carb-Ratio throughout the day: a chart with labelled axes from 00:00 to 24:00, the user's doses as purple dots against the model's flat green line. Model vs User performance: a strip of coloured squares, green for the model, purple for the user, grey for undecided"><br><sub><b>Analysis</b><br>ICR by hour, and visual indicator/s for when the model begins to outperform the user</sub></td>
+    <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen with four cards. Your data: meals recorded, meals processed and the average distance from target in mg/dL. Insulin-Carb-Ratio throughout the day: labelled axes from 00:00 to 24:00 with the user's doses as purple dots against the model's flat green line. Benchmarking Model vs User: two running-average lines, the model's distance from 90 mg/dL starting high and falling to meet the user's. Last 20: the same two lines rescaled to the recent window"><br><sub><b>Analysis</b><br>ICR by hour, and visual indicator/s for when the model begins to outperform the user</sub></td>
   </tr>
 </table>
 
@@ -113,70 +104,46 @@ so a bias in its bolus coefficient biases every verdict the same way.
 
 # Data and ML
 
-## Data requirements
+A model can only be as good as the meals it learns from, so a few habits around the diary matter
+more than anything the code does.
 
-The labels are only as good as the records they are built from. Five conditions decide whether the
-recorded meals count as clean training data:
+## Data requirements
 
 - **Four clear hours after the meal.** A second meal inside that window mixes two meals into one
   label. Meals need at least four hours between them, and the app cannot detect a violation.
 - **Variation in carbs and dose.** Identical meals with identical doses give the fit no contrast to
   attribute an outcome to.
-- **Meals across the day.** The time-dependent terms only resolve where entries exist at different
-  hours. They do not require meals at fixed times.
-- **Regular imports.** A label comes from imported CGM data. An un-imported week is an untrainable
-  week.
+- **Meals across the day.** The model only resolves how the carb ratio changes with the hour where
+  entries exist at different hours. It does not require meals at fixed times.
+- **Regular imports.** A label comes from imported CGM data, so an un-imported week is an
+  untrainable week.
 - **One fixed time zone.** Readings carry no UTC offset, so travelling or changing the zone manually 
-  before a meal is assigned its corresponding 4 hour later glucose level, makes the lookup aim at
-  the wrong hour. Do not switch timezones between making an entry importing corresponding CGM data.
+  between a meal and the import that covers it makes the lookup aim at the wrong hour. Do not switch
+  time zones between making an entry and importing its CGM data.
+
 ## The model
 
-**Estimator.** Ridge regression, solved in closed form in the app: no framework, no model file, no
-runtime dependency. Ten standardised features, three labelled rows minimum.
+It is ridge regression, fitted inside the app on retrain: no ML framework, no downloaded model
+file, no runtime dependency. Three labelled meals are enough for it to exist, and it starts
+suggesting doses from that moment rather than waiting for a sample count it would consider
+respectable. The error printed beside a suggestion is a leave-one-out figure - each meal predicted
+by a model fitted without it - which is the honest one; the in-sample number shown next to it is
+always optimistic.
 
-**Features.** The meal vector is `glucose`, `carbs`, `bolus` and `basis` (long-acting). Time of day
-enters as a point on the 24-hour circle, `sin t` and `cos t` with `t = 2 * pi * minuteOfDay / 1440`,
-so 23:50 and 00:10 sit next to each other instead of at opposite ends of a line. The four remaining
-columns are interactions, `carbs*sin t`, `carbs*cos t`, `bolus*sin t`, `bolus*cos t`.
+The model reads a meal as glucose, carbs, bolus and long-acting insulin, plus where in the day the
+meal happened. Time enters as a smooth position on the 24-hour circle rather than as
+breakfast/lunch/dinner slots, both because 11:50 and 12:10 are the same kind of meal and because
+slots would merge 08:00 with 11:50. Carbs and bolus are multiplied by that time signal, which is the
+whole idea: the carb ratio is a curve over the day, not a number, so one carb unit may need more
+insulin at breakfast than at dinner. Staying with a regression rather than a tree is deliberate too -
+asking what would have happened at a dose never taken means extrapolating, and a tree answers that
+with its nearest memorised case. A neural net would learn more, but wants hundreds of meals and
+cannot explain why it produced its answer.
 
-**How the interactions work.** Written out, the model is
-
-```
-glucose_4h = a0 + a1*glucose + a2*basis + (c0 + c1*sin t + c2*cos t)*carbs
-                                      + (b0 + b1*sin t + b2*cos t)*bolus
-```
-
-so the carb coefficient is not a number but a smooth curve over the day, and so is the bolus
-coefficient. That is the product thesis in one equation: one carb unit needs a different amount of
-insulin at breakfast than at dinner, and the coefficient is allowed to say so. Meal slots
-(breakfast, lunch, dinner) are deliberately not used, since they would split 11:50 from 12:10 while
-merging 08:00 with 11:50.
-
-**Fitting.** Features are standardised with the training means and standard deviations, which are
-persisted alongside the coefficients. The solve is `(X'X + diag(penalty)) w = X'(y - mean y)` by
-Gaussian elimination with partial pivoting, on a 10 by 10 system. Main effects carry `lambda` = 0.1;
-the four interaction columns carry `lambda * 10`, so on thin data the fit collapses toward constant
-factors and only bends into a time-varying curve when the rows support it.
-
-**Consequences of staying linear.** Prediction is linear in `bolus`, so the sweep is a straight line
-at any given hour - and because the bolus terms are interacted with `sin t` and `cos t`, the slope of
-that line changes across the day instead of being one number. Linearity makes the curve *straight,
-not falling*: the slope is a fitted coefficient, and on five seeded meals it came out positive at 22
-of the 24 hours, so the sweep ran backwards and the app reported its closest miss at the lowest dose.
-Nothing checks the sign of that coefficient; a wrong slope is visible on the analysis chart, where the
-model's line goes flat or rises. A tree or a forest was
-rejected because its output is piecewise constant, which makes the whole sweep flat and arbitrary
-exactly where a counterfactual dose question is asked. A neural net was rejected because it needs far
-more rows, extrapolates unpredictably, and its factors cannot be read off.
-
-**Accuracy.** Leave-one-out (refit without each row, predict it back) is the honest figure and the
-one shown beside suggestions; in-sample RMSE is always optimistic and shown next to it. LOO needs
-four labelled rows, since every fold must still keep three. The distance between the two figures is
-the honesty check.
-
-**Coverage.** The model is linear in `sin t` and `cos t`, so it will happily answer for hours with no
-meals. An entry more than 60 minutes from every recorded meal hour is still predicted but flagged as
-an extrapolation.
+Linearity has a price: the dose curve is always straight, and a model fitted on thin data can come
+out sloping the wrong way. Nothing hides that. The analysis chart draws the fitted curve exactly as
+it is, and every suggestion carries the error figure that says how much to trust it. Predictions for
+a time of day with no recorded meals are still made, but marked as extrapolation.
 
 # Build and test
 
@@ -201,10 +168,9 @@ an extrapolation.
 ./gradlew testDebugUnitTest
 ```
 
-The parity test reads the export in `glpred_prototype/` (not in git) and compares the Kotlin pipeline
-against the numbers the notebook printed for the same file: 280,142 glucose rows, 245,391 distinct
-minutes, 244,717 after cleaning, plus the 3 h and 4 h labels of its five sample entries. It skips
-when the export is absent, so a fresh clone passes with that test skipped.
+The suite covers the CGM import, the preprocessing rules, label generation, the model maths and the
+dose sweep. One test cross-checks the Kotlin pipeline against the numbers the original notebook
+printed for the same export; it skips when the export is missing, so a fresh clone still passes.
 
 ## Project layout
 
@@ -227,15 +193,13 @@ rebuilt wholesale on every import, which loses nothing because LibreView exports
 
 ## Development status
 
-Phase status, open decisions and the measured facts behind the numbers live in [PLAN.md](PLAN.md).
+The whole loop works: record a meal, import, let the labels mature, train, predict, keep the
+suggestion, then see what actually happened. Until a few dozen real meals exist, the app reports
+itself as unvalidated, which is intended behaviour rather than a defect.
 
-What is not yet built:
-
-- A guard against meals far outside the recorded data, beyond the hour-of-day warning. A much
-  larger meal than anything in the diary is extrapolated without complaint.
-- The four-hour spacing requirement is stated but not checked. A second meal inside the window
-  silently degrades that label.
-- No configurable target band or horizon.
+Two gaps are worth knowing about: a meal far larger than anything in the diary is extrapolated
+without complaint, and the four-hour spacing rule is stated but not checked. Phase status, open
+decisions and the measured facts behind the numbers live in [PLAN.md](PLAN.md).
 
 # Privacy and legal
 

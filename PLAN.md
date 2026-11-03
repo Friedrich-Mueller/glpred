@@ -26,11 +26,11 @@ worse than none.
 | Time-coverage guard, persistent disclaimer | done (Phase 5, 31-10-2026) |
 | History list with pending/labelled state | done (Phase 4, 31-10-2026) |
 | History edit/delete any of the six fields, with staleness flag | done (01-11-2026): `HistoryScreen` dialog, `DataVersion` |
-| Analysis screen: carb ratio by hour, model-vs-user verdicts | done (01-11-2026), see the session note - three scorings were tried and two rejected |
+| Analysis screen: carb ratio by hour, model-vs-user benchmark | done (01-11-2026); the scoring itself was replaced 03-11-2026 - see the metric decision below and its session note |
 | Settings (target band, horizon) | deliberately dropped for v1: the band 90-140 and the 4 h primary horizon are settled |
 | Entry form starts empty after a save | done (03-11-2026): `DiaryViewModel.clearDraft()` |
 | Diary export to CSV (the diary has no other source) | done (03-11-2026): `DiaryCsv`, History top bar, SAF create-document |
-| Unit tests | 43 in `app/src/test`, all passing |
+| Unit tests | 46 in `app/src/test`, all passing |
 
 ## The constraint that shapes the whole design
 
@@ -185,6 +185,47 @@ Still unsolved, and structural: the ISF used to judge a meal comes from the mode
 bias in the bolus coefficient biases every projection the same way. Only an externally measured
 value would break that, and taking one is exactly what this app declines to do.
 
+## Human vs model metric: what shipped, and what was cut (03-11-2026)
+
+The analysis screen compares two distances per scored meal, both in mg/dL from the 90 mg/dL that both
+doses aim at:
+
+- **the model's dose:** `projected = actual + slope * (suggested - injected)`, where `slope` is
+  `dG4/dU` captured when the suggestion was made (`DoseSlopes`, SharedPreferences). The slope is the
+  only thing stored: retraining replaces the model, and grading an old meal against a later fit would
+  judge it by a model that never made that suggestion.
+- **the user's dose:** the achieved 4 h value.
+
+Both are plotted as running averages - over the whole history in one card, and again over the trailing
+20 scored meals in another, whose axis rescales to that window. When the model's line drops below the
+user's and stays below it, its dosing has overtaken the rule of thumb. `DoseBenchmark` now exists for
+exactly one job: produce those two numbers, and publish the three reasons a meal cannot carry them
+(same dose within 0.5 U, no captured slope, slope shallow or inverted).
+
+**Built first, then deleted - with the argument, so none of it is rebuilt by accident:**
+
+- *A per-meal verdict and a win count.* It collapsed the two distances into one bit and discarded the
+  magnitudes, so a dose 5 mg/dL from target and one 150 mg/dL from target scored identically. It also
+  degenerates into ties the moment the user starts following the model - exactly when the comparison
+  should matter most.
+- *CUSUM and change-point detection.* The threshold 12.0 was calibrated on 20 000 simulated histories
+  (77.1 % false alarms at the 4.0 first written, 3.0 % at 12.0) and the detector worked. Its entire
+  output was a meal index for one sentence on the screen; when the sentence went, it had no consumer.
+- *The Jeffreys interval, the rolling window, the loss function, and M2 (ratio space).* Each existed to
+  support the verdict or the detector. M2 was additionally ISF-dependent - measured 0.800 with a
+  correct sensitivity, 0.595 with a halved one - so it could only ever be a consistency check on the
+  ratio, never a fair contest.
+- *The synthetic harness (`SyntheticWorld`, `DoseBenchmarkHarnessTest`).* It existed to calibrate the
+  CUSUM and to expose the M2 defect. Both are gone; the measurements it produced live in this section
+  rather than in the code.
+
+Consequence, stated plainly: the app can no longer say *when* the model overtook the user in the sense
+of a hypothesis test. It draws the crossing, and a crossing is descriptive. That was accepted on
+03-11-2026 in exchange for a metric a reader needs no statistics to interpret.
+
+Unchanged from the earlier design: nothing is randomised, so every comparison stays a projection rather
+than an observation, and an externally measured ISF is still refused as an input to advice.
+
 ## Phases
 
 0. Hygiene: verify pushes, add `app/src/test` with JUnit (dependency change, needs
@@ -210,8 +251,11 @@ value would break that, and taking one is exactly what this app declines to do.
 
 ## Next step
 
-No phase is open. The app implements the whole loop: record -> import -> labels mature -> train ->
-predict -> store the suggestion -> review what happened.
+No phase from the list above is open. The analysis screen was rebuilt on 03-11-2026 around the two
+running-average plots, and the verdict/CUSUM machinery that preceded it was deleted. `DoseSlopes` still
+has no test - SharedPreferences is not reachable from a JVM test - so saving a suggestion through the
+review flow remains the only proof of that write. Everything loop-level is finished: record -> import ->
+labels mature -> train -> predict -> store the suggestion -> review what happened.
 
 What remains is not code:
 
@@ -492,3 +536,36 @@ dump`; model coefficients read from `model_table` via `run-as`. All of it offlin
       `TrainingSample.BOLUS_INDEX`.
 - [ ] Repeated-tap guard on Confirm & Save: no in-flight flag, so a double tap could double-insert
       (not reproduced - navigation won the race on 03-11-2026).
+
+## 03-11-2026 - Human vs model metric, slices 1-2: calibration and what the harness measured
+
+Artifacts: `app/src/test/.../DoseBenchmarkTest.kt`, `DoseBenchmarkHarnessTest.kt` and
+`SyntheticWorld.kt` via `./gradlew :app:testDebugUnitTest`. **Every number below comes from the
+simulated world** - true ICR(t) 0.9 +/- 0.35 u/CU, ISF 50, label noise sd 20, user fumble sd 0.5 -
+and none of it says anything about real meals or real physiology.
+
+- **The CUSUM threshold was a guess and was wrong by an order of magnitude.** False alarms on 20 000
+  simulated 60-meal histories with no improvement: 77.1 % at h = 4.0 (the value first written), 17.5 %
+  at 8.0, 7.3 % at 10.0, 3.0 % at 12.0, 1.1 % at 14.0. Shipped h = 12.0, buying the 5 % budget at the
+  cost of latency: after a real switch the signal arrives roughly 20 scored meals later (measured
+  change point at scored index 30 of 59, switch at meal 40).
+- **The null is not 0.5 but 0.544** (CI 0.509-0.580) against a model with no advantage. The loss is
+  convex and tripled below 90, so an actor that fumbles between doses loses more than one that sits
+  still on the same rule. The metric scores precision as well as accuracy, which makes 0.5 a floor
+  rather than a fixed point.
+- **The win rate is not monotone in model fidelity**: 50 % of the true curve scored 0.929, 100 %
+  scored 0.882. The projection starts from a noisy label, so a model whose dose moves further trips the
+  hypo floor on an unlucky reading. The metric ranks "better than the rule of thumb"; it does not rank
+  how much better.
+- **M2 was polluted by the correction bolus**, found by the divergence test: `dose/carbs` folds
+  `(G0 - 90)/ISF` into the ratio, and a deliberately halved ISF produced M1 0.64 against M2 0.39.
+  Corrected by stripping the correction per carb from both sides; decision 1 amended. The strip fixes
+  the dish, not the dependence: a correct ISF reads 0.800 for a model that knows the curve, a halved
+  ISF reads 0.595, because `ICR_true` is solved with the same number. M2 is meaningful only while the
+  sensitivity is roughly right.
+- A real advantage reads 0.882 (CI 0.861-0.900) against 0.544 for none, and an inverted model yields
+  scored 0 / inverted 50 with no verdict fabricated - the invalid path is confirmed to work.
+
+Still absent from the metric and needed by slice 4: win/tie counts for M2 (per-meal ratio errors are
+exposed, no aggregate), and a parity test between `DoseBenchmark.lossOf` and
+`CounterfactualScore.errorOf`, whose constants are duplicated until slice 4 deletes the old class.
