@@ -43,12 +43,10 @@ class MainActivity : ComponentActivity() {
                 composable("main") {
                     MainScreen(
                         onNewEntryClick = { navController.navigate("enter_data") },
-                        onFetchDataClick = { navController.navigate("fetch_data") },
+                        onFetchAndTrainClick = { navController.navigate("fetch_data") },
                         onHistoryClick = { navController.navigate("history") },
                         onAnalysisClick = { navController.navigate("analysis") },
-                        trainingStatus = viewModel.trainingStatus,
-                        isTraining = viewModel.isTraining,
-                        onTrainClick = { viewModel.trainModel() }
+                        trainingStatus = viewModel.trainingStatus
                     )
                 }
                 composable("enter_data") {
@@ -78,7 +76,8 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("fetch_data") {
                     FetchDataScreen(
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        diary = viewModel
                     )
                 }
                 composable("history") {
@@ -101,12 +100,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     onNewEntryClick: () -> Unit,
-    onFetchDataClick: () -> Unit,
+    onFetchAndTrainClick: () -> Unit,
     onHistoryClick: () -> Unit,
     onAnalysisClick: () -> Unit,
-    trainingStatus: String,
-    isTraining: Boolean,
-    onTrainClick: () -> Unit
+    trainingStatus: String
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -126,21 +123,24 @@ fun MainScreen(
             }
 
             Button(
-                onClick = onFetchDataClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
-                Text(text = "Fetch Data")
-            }
-
-            Button(
                 onClick = onHistoryClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
             ) {
                 Text(text = "History")
+            }
+
+            // Import and training are one action: an import is the only thing that makes new
+            // labels exist, so a separate Train button only ever meant "train, then redo that
+            // after the next import".
+            Button(
+                onClick = onFetchAndTrainClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            ) {
+                Text(text = "Fetch Data & Train Model")
             }
 
             Button(
@@ -150,16 +150,6 @@ fun MainScreen(
                     .padding(horizontal = 24.dp)
             ) {
                 Text(text = "Model Performance Analysis")
-            }
-
-            Button(
-                onClick = onTrainClick,
-                enabled = !isTraining,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
-                Text(text = if (isTraining) "Training..." else "Train Model")
             }
 
             Text(

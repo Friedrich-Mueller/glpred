@@ -1,5 +1,6 @@
 package com.example.glpred.ui
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -23,8 +25,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +50,7 @@ import java.util.Locale
 @Composable
 fun FetchDataScreen(
     onNavigateBack: () -> Unit,
+    diary: DiaryViewModel,
     viewModel: FetchDataViewModel = viewModel()
 ) {
     val csvPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -50,10 +59,23 @@ fun FetchDataScreen(
         }
     }
 
+    val context = LocalContext.current
+
+    // A fresh import is the only thing that makes new labels exist, so the fit belongs to the same
+    // step rather than to a button of its own. Keyed on a counter that is remembered, so a rotation
+    // does not refit a second time, and a second import does.
+    var trainedImport by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(viewModel.successfulImports) {
+        if (viewModel.successfulImports > trainedImport) {
+            trainedImport = viewModel.successfulImports
+            diary.trainModel()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Fetch CGM Data") },
+                title = { Text("Fetch Data & Train Model") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
@@ -142,6 +164,72 @@ fun FetchDataScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+
+            // The model's state belongs under the stored data, because it describes what that data
+            // produced: an import retrains on its own, so the only action left is refitting after
+            // the diary itself changed.
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(Space.loose),
+                    verticalArrangement = Arrangement.spacedBy(Space.normal)
+                ) {
+                    Text(
+                        text = "Model",
+                        fontSize = Type.section,
+                        fontWeight = FontWeight.Medium
+                    )
+                    when {
+                        diary.isTraining ->
+                            StatusDot(StateColors.waiting, "Training on the stored data...")
+                        diary.isModelStale ->
+                            StatusDot(StateColors.waiting, "Out of date - the diary changed after this fit")
+                        diary.hasModel ->
+                            StatusDot(StateColors.model, "Up to date with the stored data")
+                    }
+                    Text(
+                        text = diary.trainingStatus,
+                        fontSize = Type.body,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Always present, greyed while the fit is current. Removing it left the user
+                    // wondering where it had gone; greying it says "already done" instead, and a
+                    // press still answers the question it raises.
+                    val canRetrain = diary.isModelStale && !diary.isTraining
+                    Button(
+                        onClick = {
+                            when {
+                                canRetrain -> diary.trainModel()
+                                diary.isTraining -> Toast.makeText(
+                                    context,
+                                    "Training is already running",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                else -> Toast.makeText(
+                                    context,
+                                    "No need to retrain now",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        colors = if (canRetrain) {
+                            ButtonDefaults.buttonColors()
+                        } else {
+                            // Explicit colours rather than `enabled = false`: a disabled button
+                            // swallows the tap, and the tap is what carries the explanation.
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = "Retrain on stored data")
+                    }
+                }
             }
 
             viewModel.errorMessage?.let { errorMessage ->

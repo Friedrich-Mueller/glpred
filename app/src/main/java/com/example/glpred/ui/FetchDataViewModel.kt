@@ -46,6 +46,13 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
     var importSuccess by mutableStateOf(false)
         private set
 
+    /**
+     * How many imports have completed. The screen keys the automatic fit on this: a boolean would
+     * fire again after a rotation, and a counter also survives two imports in a row.
+     */
+    var successfulImports by mutableStateOf(0)
+        private set
+
     var importedCount by mutableStateOf(0)
         private set
 
@@ -145,6 +152,7 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
                 onSuccess = { count ->
                     importedCount = count
                     importSuccess = true
+                    successfulImports++
                     // The table was just replaced: the summary must reflect the new span.
                     refreshStoredSpan()
                 },

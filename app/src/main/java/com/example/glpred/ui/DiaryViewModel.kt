@@ -75,6 +75,10 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     val isModelStale: Boolean
         get() = trainingResult is TrainingResult.Trained && trainedVersion != dataVersion
 
+    /** A model exists, whether or not it still describes the current diary. */
+    val hasModel: Boolean
+        get() = trainingResult is TrainingResult.Trained
+
     /**
      * The model survives the process, so the status line must not claim otherwise: without this the
      * screen said "not trained yet" after every restart while the advisor went on using the model.
@@ -403,8 +407,8 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
                             "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
                     result.restoredAtStartup ->
-                        "Model: ${result.samples4h} samples, restored - press Train to recompute " +
-                            "the error"
+                        "Model: ${result.samples4h} samples, restored from storage - the validation " +
+                            "error is recomputed at the next import"
                     else ->
                         "Model: ${result.samples4h} samples, in-sample RMSE ${result.rmse4h.toInt()} mg/dL " +
                             "- validation needs one more labelled entry"
