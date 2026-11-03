@@ -29,7 +29,8 @@ worse than none.
 | Analysis screen: carb ratio by hour, model-vs-user verdicts | done (01-11-2026), see the session note - three scorings were tried and two rejected |
 | Settings (target band, horizon) | deliberately dropped for v1: the band 90-140 and the 4 h primary horizon are settled |
 | Entry form starts empty after a save | done (03-11-2026): `DiaryViewModel.clearDraft()` |
-| Unit tests | 39 in `app/src/test`, all passing |
+| Diary export to CSV (the diary has no other source) | done (03-11-2026): `DiaryCsv`, History top bar, SAF create-document |
+| Unit tests | 43 in `app/src/test`, all passing |
 
 ## The constraint that shapes the whole design
 

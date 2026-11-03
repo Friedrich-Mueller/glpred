@@ -1,6 +1,7 @@
 package com.example.glpred.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.glpred.data.CgmDatabase
 import com.example.glpred.data.DataVersion
+import com.example.glpred.data.DiaryCsv
 import com.example.glpred.data.DiaryDatabase
 import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
@@ -493,6 +495,28 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             dataVersion = DataVersion.bump(getApplication())
         }
         return null
+    }
+
+    /**
+     * Writes the whole diary to [uri] and reports the row count.
+     *
+     * The count is reported rather than assumed: an export that silently wrote nothing looks
+     * identical to one that worked, and the user finds out when they need the file.
+     */
+    fun exportDiary(uri: Uri, onDone: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val entries = diaryDao.getAllEntriesList()
+                    val csv = DiaryCsv.render(entries)
+                    val stream = getApplication<Application>().contentResolver
+                        .openOutputStream(uri) ?: error("The selected file could not be opened.")
+                    stream.use { it.write(csv.toByteArray(Charsets.UTF_8)) }
+                    entries.size
+                }
+            }
+            onDone(result)
+        }
     }
 
     fun trainModel() {

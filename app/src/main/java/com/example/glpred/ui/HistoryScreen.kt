@@ -1,5 +1,8 @@
 package com.example.glpred.ui
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -34,12 +38,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.glpred.preprocessing.HistoryRow
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
@@ -56,6 +62,26 @@ fun HistoryScreen(
     viewModel: DiaryViewModel = viewModel()
 ) {
     val rows by viewModel.history.collectAsState()
+    val context = LocalContext.current
+
+    // Export goes through SAF, like the CGM import in the other direction: no storage permission,
+    // no FileProvider, and the file lands wherever the user chooses.
+    val csvCreator = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportDiary(uri) { result ->
+                result.fold(
+                    onSuccess = { count ->
+                        Toast.makeText(context, "Exported $count entries", Toast.LENGTH_SHORT).show()
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(context, "Export failed: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -66,6 +92,18 @@ fun HistoryScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    // Disabled on an empty diary: a header-only file is not a backup.
+                    IconButton(
+                        onClick = { csvCreator.launch("glpred-diary-${LocalDate.now()}.csv") },
+                        enabled = rows.isNotEmpty()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Share,
+                            contentDescription = "Export diary as CSV"
                         )
                     }
                 }
