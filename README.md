@@ -44,36 +44,37 @@ estimate for every hour that also knows which meals produced it.
 
    Date, time, blood glucose, carbs and long-acting insulin are recorded. The short-acting dose is
    deliberately absent at this point, because the app is about to propose one.
-
-2. **<u>Import CGM readings</u>**
-
-   The LibreView CSV is the only route for glucose data into the app, and only English exports are
-   parsed.
-
-3. **<u>The entry becomes a training row.</u>**
-
-   That happens once the imported readings cover the moment four hours after the meal. Until then
-   the entry is pending, which is the normal state rather than a failure.
-
-4. **<u>A model is trained</u>**
-
-   One ridge fit over every labelled entry.
-
-5. **<u>A dose is proposed</u>**
+2. **<u>A dose is proposed</u>**
 
    Doses from 1 to 25 units in half-unit steps are run through the model, and the one whose
    predicted four-hour glucose comes closest to 90 mg/dL is shown. When no dose reaches the 90 to
    140 band, the screen states that instead of presenting the nearest miss as advice.
 
-6. **<u>Chosen dose and predicted dose are stored.</u>**
+3. **<u>Actual dose and predicted dose are stored.</u>**
 
    That pair is what the analysis screen later uses to compare the model's judgement with the
    patient's.
 
-Meals without an import produce no labels, and labels without a fit produce no suggestion, so the
-loop only turns when stages 1, 2 and 4 all happen. Prediction itself is not gated on sample count: a
-model with three labelled entries answers exactly as one with three hundred does, and the validation
-error shown beside the number is what says how much reliance that number supports.
+4. **<u>Import CGM readings & train the model</u>**
+
+   The LibreView CSV is the only route for glucose data into the app; those readings are connected
+   to the meal data. The resulting training data is used to train a Ridge regression model as soon
+   as the import lands.
+
+5. **<u>_Optional_: Review diary history</u>**
+
+   Delete or make changes to entries. (Results in a stale model that should be retrained. No
+   re-import needed.)
+
+6. **<u>_Optional_: Review the model's performance</u>**
+
+   A graph showing the model's learned ICR across the span of the day, as well as indicators for when
+   the model starts to outperform the user's 'predictions'.
+
+A meal only becomes training data once an import covers the four hours after it, which is why a
+fresh install has nothing to suggest from and says as much. Three labelled meals are required for a 
+model to exist. The validation error beside each dose is what tells you how much that number is
+worth.
 
 ## Benchmarking Model vs Patient
 
@@ -95,13 +96,13 @@ so a bias in its bolus coefficient biases every verdict the same way.
 
 <table>
   <tr>
-    <td align="center" width="33%"><img src="images/main.png" width="230" alt="Main menu with New Entry, Fetch Data, History, Model Performance Analysis and Train Model buttons, plus a status line reporting the trained model"><br><sub><b>Main menu</b><br>Train, and see how much the model can be trusted</sub></td>
+    <td align="center" width="33%"><img src="images/main.png" width="230" alt="Main menu with New Entry, History, Fetch Data and Train Model and Model Performance Analysis buttons, plus a status line reporting the trained model"><br><sub><b>Main menu</b><br>Record a meal, import and train, look back, or read the evidence</sub></td>
     <td align="center" width="33%"><img src="images/enter-data.png" width="230" alt="Enter data screen with date, time, blood glucose, carbohydrates and long-acting insulin fields"><br><sub><b>Record a meal</b><br>No short-acting dose yet, that is decided next</sub></td>
     <td align="center" width="33%"><img src="images/review.png" width="230" alt="Review screen: the entry as labelled values, then either a suggested dose in large type with its predicted glucose, or an amber warning that no dose reaches the range; below that the model's accuracy and the disclaimer, and a field for the dose actually injected"><br><sub><b>Review and prediction</b><br>The suggestion, its error, and why it may not be trustworthy</sub></td>
   </tr>
   <tr>
     <td align="center" width="33%"><img src="images/history.png" width="230" alt="History list of meal cards: date and time with the injected dose on the right, a coloured status dot for trainable or pending, the starting glucose and carbs as two labelled columns, and the predicted against the actual 4 h value"><br><sub><b>History</b><br>Which meals are trainable, what actually happened, and a way to fix a typo</sub></td>
-    <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data screen showing the stored CGM span from first to last reading and the total row count"><br><sub><b>Import CGM data</b><br>File picker, reports the time span the import covers</sub></td>
+    <td align="center" width="33%"><img src="images/fetch-data.png" width="230" alt="Fetch data and train screen: the file picker, a Stored CGM data card with the first and last reading and 280,142 rows, and a Model card marked out of date above a retrain button"><br><sub><b>Import and train</b><br>The import refits the model; the card says when the fit is out of date</sub></td>
     <td align="center" width="33%"><img src="images/analysis.png" width="230" alt="Analysis screen with three cards. Your data: 8 meals recorded, 5 carry a suggestion, 5 have a verified 4 h value, average misprediction 33 mg/dL. Insulin-Carb-Ratio throughout the day: a chart with labelled axes from 00:00 to 24:00, the user's doses as purple dots against the model's flat green line. Model vs User performance: a strip of coloured squares, green for the model, purple for the user, grey for undecided"><br><sub><b>Analysis</b><br>ICR by hour, and visual indicator/s for when the model begins to outperform the user</sub></td>
   </tr>
 </table>
@@ -125,15 +126,9 @@ recorded meals count as clean training data:
   hours. They do not require meals at fixed times.
 - **Regular imports.** A label comes from imported CGM data. An un-imported week is an untrainable
   week.
-- **One fixed time zone.** No offset is stored with a reading, so a device zone change between an
-  import and a training run, for instance because the user travels, shifts every label by the offset
-  difference. The numbers then mean nothing, without any error being raised. The app should be used
-  in one zone; after moving, re-import and retrain.
-
-Any of the six recorded values can be corrected or deleted from history. Editing the meal discards
-the suggestion made for the old version instead of leaving a stale number, and the model is marked
-stale until retrained.
-
+- **One fixed time zone.** Readings carry no UTC offset, so travelling or changing the zone manually 
+  before a meal is assigned its corresponding 4 hour later glucose level, makes the lookup aim at
+  the wrong hour. Do not switch timezones between making an entry importing corresponding CGM data.
 ## The model
 
 **Estimator.** Ridge regression, solved in closed form in the app: no framework, no model file, no
@@ -163,8 +158,13 @@ Gaussian elimination with partial pivoting, on a 10 by 10 system. Main effects c
 the four interaction columns carry `lambda * 10`, so on thin data the fit collapses toward constant
 factors and only bends into a time-varying curve when the rows support it.
 
-**Consequences of staying linear.** Prediction is linear in `bolus`, so `d(glucose_4h)/d(bolus)` is
-constant and the sweep is monotone: more insulin never predicts more glucose. A tree or a forest was
+**Consequences of staying linear.** Prediction is linear in `bolus`, so the sweep is a straight line
+at any given hour - and because the bolus terms are interacted with `sin t` and `cos t`, the slope of
+that line changes across the day instead of being one number. Linearity makes the curve *straight,
+not falling*: the slope is a fitted coefficient, and on five seeded meals it came out positive at 22
+of the 24 hours, so the sweep ran backwards and the app reported its closest miss at the lowest dose.
+Nothing checks the sign of that coefficient; a wrong slope is visible on the analysis chart, where the
+model's line goes flat or rises. A tree or a forest was
 rejected because its output is piecewise constant, which makes the whole sweep flat and arbitrary
 exactly where a counterfactual dose question is asked. A neural net was rejected because it needs far
 more rows, extrapolates unpredictably, and its factors cannot be read off.
@@ -235,7 +235,7 @@ What is not yet built:
   larger meal than anything in the diary is extrapolated without complaint.
 - The four-hour spacing requirement is stated but not checked. A second meal inside the window
   silently degrades that label.
-- No configurable target band or horizon, and no export of the recorded data.
+- No configurable target band or horizon.
 
 # Privacy and legal
 
