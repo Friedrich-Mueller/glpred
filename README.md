@@ -16,12 +16,12 @@ for years, so I finished it in 2026.
 
 ## Table of Contents
 
-- [<u>The App</u>](#glpred)
-- [<u>Data and ML</u>](#data-and-ml)
-    - [<u>Data requirements</u>](#data-requirements)
-    - [<u>The model</u>](#the-model)
-- [<u>Build and test</u>](#build-and-test)
-- [<u>Privacy and legal</u>](#privacy-and-legal)
+- [<ins>The App</ins>](#glpred)
+- [<ins>Data and ML</ins>](#data-and-ml)
+    - [<ins>Data requirements</ins>](#data-requirements)
+    - [<ins>The model</ins>](#the-model)
+- [<ins>Build and test</ins>](#build-and-test)
+- [<ins>Privacy and legal</ins>](#privacy-and-legal)
 
 
 ## The problem
@@ -38,35 +38,35 @@ functions of time of day from the user's own meals and doses, and suggests the d
 four-hour glucose lands closest to 90 mg/dL. Three values per day with guessed gaps become an
 estimate for every hour that also knows which meals produced it.
 
-## The loop
+## How it works
 
-1. **<u>Create diary entries</u>**
+1. **<ins>Create diary entries</ins>**
 
    Date, time, blood glucose, carbs and long-acting insulin are recorded. The short-acting dose is
    deliberately absent at this point, because the app is about to propose one.
-2. **<u>A dose is proposed</u>**
+2. **<ins>A dose is proposed</ins>**
 
    Doses from 1 to 25 units in half-unit steps are run through the model, and the one whose
    predicted four-hour glucose comes closest to 90 mg/dL is shown. When no dose reaches the 90 to
    140 band, the screen states that instead of presenting the nearest miss as advice.
 
-3. **<u>Actual dose and predicted dose are stored.</u>**
+3. **<ins>Actual dose and predicted dose are stored.</ins>**
 
    That pair is what the analysis screen later uses to compare the model's judgement with the
    patient's.
 
-4. **<u>Import CGM readings & train the model</u>**
+4. **<ins>Import CGM readings & train the model</ins>**
 
    The LibreView CSV is the only route for glucose data into the app; those readings are connected
    to the meal data. The resulting training data is used to train a Ridge regression model as soon
    as the import lands.
 
-5. **<u>_Optional_: Review diary history</u>**
+5. **<ins>_Optional_: Review diary history</ins>**
 
    Delete or make changes to entries. (Results in a stale model that should be retrained. No
    re-import needed.)
 
-6. **<u>_Optional_: Review the model's performance</u>**
+6. **<ins>_Optional_: Review the model's performance</ins>**
 
    A graph showing the model's learned ICR across the span of the day, as well as indicators for when
    the model starts to outperform the user's 'predictions'.
