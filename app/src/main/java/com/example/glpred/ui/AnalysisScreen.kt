@@ -30,10 +30,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
+import kotlin.math.ceil
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import com.example.glpred.prediction.CounterfactualScore
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import com.example.glpred.prediction.DoseBenchmark
 import com.example.glpred.prediction.ModelVsHuman
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -96,7 +100,8 @@ fun AnalysisScreen(
                 else -> {
                     CountsCard(current)
                     RatioCard(current)
-                    ConvergenceCard(current)
+                    BenchmarkCard(current)
+                    RecentCard(current)
                 }
             }
         }
@@ -108,20 +113,24 @@ private fun CountsCard(analysis: ModelVsHuman) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             SectionTitle("Your data")
-            Line("${analysis.mealsRecorded} meals recorded")
-            Line("${analysis.mealsWithSuggestion} carry a suggestion from the model")
-            Line("${analysis.labelledMeals} have a verified 4 h value")
-            val validation = analysis.validationErrorMgDl
-            Line(
-                if (validation == null) {
-                    "Average misprediction: not computable yet (needs four labelled meals)"
-                } else {
-                    "Average misprediction: ${validation.roundToInt()} mg/dL on meals the model " +
-                        "was not trained on"
-                }
-            )
+            Line(countsLine(analysis))
         }
     }
+}
+
+/**
+ * One line, because four said the same thing: a meal with a suggestion almost always has a 4 h value,
+ * and the validation error is already an error - "on meals the model was not trained on" is what
+ * validation means. The 4 h count is only shown when it genuinely differs, which is the case worth
+ * noticing.
+ */
+private fun countsLine(analysis: ModelVsHuman): String = buildString {
+    append("${analysis.mealsRecorded} meals recorded")
+    append(" · ${analysis.mealsWithSuggestion} processed")
+    if (analysis.labelledMeals != analysis.mealsWithSuggestion) {
+        append(" · ${analysis.labelledMeals} with a 4 h value")
+    }
+    analysis.validationErrorMgDl?.let { append(" · average miss ${it.roundToInt()} mg/dL") }
 }
 
 @Composable
@@ -144,110 +153,244 @@ private fun RatioCard(analysis: ModelVsHuman) {
 }
 
 @Composable
-private fun ConvergenceCard(analysis: ModelVsHuman) {
+private fun BenchmarkCard(analysis: ModelVsHuman) {
+    val metric = analysis.benchmark
+    val nothing = !metric.hasEvidence && metric.invertedCurve == 0 &&
+        metric.noSlope == 0 && metric.sameDose == 0
+
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SectionTitle("Model vs User performance")
-            val score = analysis.counterfactual
-            if (!score.hasEvidence) {
+            SectionTitle("Benchmarking Model vs User")
+
+            if (nothing) {
                 Line(
                     "No meal yet has both a suggestion from the model and a verified 4 h value.",
                     muted = true
                 )
-            } else {
-                val streak = score.currentStreak
-                val nothingDecided = score.modelWins == 0 && score.humanWins == 0
+                return@Column
+            }
+
+            if (metric.scored == 0) {
                 Text(
-                    text = when {
-                        nothingDecided -> "Nothing decided yet"
-                        streak == 0 -> "Not the model's meal on the latest one"
-                        else -> "The model was closer on the last $streak " +
-                            "meal${if (streak == 1) "" else "s"} in a row"
+                    text = if (metric.invertedCurve > 0) {
+                        "Not scoreable yet: the model's curve runs the wrong way"
+                    } else {
+                        "No meal could be scored yet"
                     },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = when {
-                        score.estimate.isEmpty ->
-                            "Not enough meals yet to work out how far a unit takes you."
-                        !score.estimate.isUsable ->
-                            "Still too rough to act on: it estimates " +
-                                "${score.estimate.meanMgDlPerUnit.roundToInt()} ± " +
-                                "${score.estimate.sdMgDlPerUnit.roundToInt()} mg/dL per unit, " +
-                                "which is mostly uncertainty."
-                        else ->
-                            "It puts 1 unit at ${score.estimate.meanMgDlPerUnit.roundToInt()} ± " +
-                                "${score.estimate.sdMgDlPerUnit.roundToInt()} mg/dL, learned from " +
-                                "${score.estimate.meals} " +
-                                "meal${if (score.estimate.meals == 1) "" else "s"}."
-                    },
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                VerdictStrip(score.window)
-                Row(
-                    modifier = Modifier.padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    StripLegend(Color(0xFF2E7D32), "model closer")
-                    StripLegend(MaterialTheme.colorScheme.primary, "you closer")
-                    StripLegend(MaterialTheme.colorScheme.outline, "undecided")
+                Line(comparisonLine(analysis), muted = true)
+                if (metric.invertedCurve > 0) {
+                    Line(
+                        "Nothing is projected from an inverted curve. The sign of the model's own " +
+                            "dose response is the first thing to get right.",
+                        muted = true
+                    )
                 }
+                return@Column
+            }
+
+            // One number per side, per meal, in the same units: distance from the 90 mg/dL every dose on
+            // both sides is aiming at. A dose is a forecast of 90, so the model's own prediction for its
+            // suggested dose and what the user's dose actually achieved are directly comparable.
+            val pairs = missPairs(metric)
+
+            if (pairs.size < 2) {
                 Text(
-                    text = "Model ${score.modelWins}, you ${score.humanWins}, undecided " +
-                        "${score.undecided}, over the last ${score.window.size} " +
-                        "meal${if (score.window.size == 1) "" else "s"}, oldest on the left.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Only ${metric.scored} meal could be scored so far",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
                 )
+                Line(comparisonLine(analysis), muted = true)
+                return@Column
+            }
+
+            val modelMiss = runningAverage(pairs.map { it.first })
+            val userMiss = runningAverage(pairs.map { it.second })
+
+            Text(
+                text = "Model ${modelMiss.last().roundToInt()} mg/dL from 90, " +
+                    "you ${userMiss.last().roundToInt()} mg/dL",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Line(comparisonLine(analysis), muted = true)
+
+            Figure("Average distance from 90 mg/dL, meal by meal") {
+                MissPlot(model = modelMiss, user = userMiss)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 34.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Caption("first meal")
+                    Caption("meal ${pairs.size}")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DotLegend(Color(0xFF2E7D32), "model's dose")
+                    DotLegend(MaterialTheme.colorScheme.primary, "your dose")
+                }
             }
         }
     }
 }
 
 /**
- * Same two colours as the units-per-carb chart, so the screen reads consistently: green is the
- * model, purple is you, grey is a meal that says nothing either way.
+ * The trailing window on its own, as its own card: the axis rescales to those twenty meals, so recent
+ * movement is visible instead of flattened by the early history in the card above.
  */
 @Composable
-private fun outcomeColor(meal: CounterfactualScore.Meal) = when {
-    meal.modelConfident -> Color(0xFF2E7D32)
-    meal.humanConfident -> MaterialTheme.colorScheme.primary
-    else -> MaterialTheme.colorScheme.outline
+private fun RecentCard(analysis: ModelVsHuman) {
+    val recent = missPairs(analysis.benchmark).takeLast(DoseBenchmark.WINDOW_SIZE)
+
+    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SectionTitle("Last ${recent.size}")
+            if (recent.size < 2) {
+                Line("Not enough scored meals in the recent window yet.", muted = true)
+                return@Column
+            }
+            MissPlot(
+                model = runningAverage(recent.map { it.first }),
+                user = runningAverage(recent.map { it.second })
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DotLegend(Color(0xFF2E7D32), "model's dose")
+                DotLegend(MaterialTheme.colorScheme.primary, "your dose")
+            }
+        }
+    }
+}
+
+/** Both sides' distance from the target the dose was aiming at, per scored meal, in input order. */
+private fun missPairs(metric: DoseBenchmark.Metric): List<Pair<Double, Double>> =
+    metric.scores.filter { it.isScored }.mapNotNull { score ->
+        score.projectedModelGlucose?.let { projected ->
+            abs(projected - TARGET_MG_DL) to abs(score.meal.actual4h - TARGET_MG_DL)
+        }
+    }
+
+/**
+ * How much of the diary the comparison actually covers. The reasons a meal cannot be compared are
+ * still counted by [DoseBenchmark.Metric] - same dose, no usable dose response, no 4 h value - but they
+ * are not printed here: "scored", "inverted curve" and "no slope captured" are the vocabulary of the
+ * implementation, not of the person reading the screen.
+ */
+private fun comparisonLine(analysis: ModelVsHuman): String {
+    val metric = analysis.benchmark
+    val skipped = analysis.mealsRecorded - metric.scored
+    val base = "${metric.scored} of ${analysis.mealsRecorded} meals compared"
+    return if (skipped > 0) "$base · $skipped skipped" else base
 }
 
 /**
- * One square per judged meal, oldest to newest. A percentage hides streaks, and a streak is the whole
- * point of this card: what matters is not the average, but whether the wins have started to run.
+ * A titled frame around one illustration, so its caption, plot and legend are visibly a single thing
+ * and cannot be confused with the one above or below.
  */
 @Composable
-private fun VerdictStrip(meals: List<CounterfactualScore.Meal>) {
-    Row(
-        modifier = Modifier.padding(top = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        meals.forEach { meal ->
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .background(outcomeColor(meal), RoundedCornerShape(3.dp))
+private fun Figure(title: String, content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                RoundedCornerShape(8.dp)
             )
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        content()
+    }
+}
+
+@Composable
+private fun Caption(text: String) {
+    Text(text = text, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** The glucose both sides dose towards: a dose is a forecast of this value. */
+private const val TARGET_MG_DL = 90.0
+
+/** Cumulative mean, so the last value is the overall average and the curve is its own history. */
+private fun runningAverage(values: List<Double>): List<Double> {
+    var sum = 0.0
+    return values.mapIndexed { index, value ->
+        sum += value
+        sum / (index + 1)
+    }
+}
+
+/**
+ * Two averages over the meals, in mg/dL from target. Where the model's line sits below the user's and
+ * stays there, the model's dose has overtaken the user's own dosing; a crossing is the whole result.
+ *
+ * No per-meal verdict is drawn: a verdict discards how far each side was, which is the only quantity
+ * worth comparing, and it degenerates into ties once the user starts following the model.
+ */
+@Composable
+private fun MissPlot(model: List<Double>, user: List<Double>) {
+    val green = Color(0xFF2E7D32)
+    val you = MaterialTheme.colorScheme.primary
+    val ceiling = maxOf(model.maxOrNull() ?: 1.0, user.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
+    val top = ceil(ceiling / 20.0) * 20.0
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .height(72.dp)
+                .padding(end = 6.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End
+        ) {
+            Caption(top.roundToInt().toString())
+            Caption((top / 2).roundToInt().toString())
+            Caption("0")
+        }
+        Canvas(
+            modifier = Modifier
+                .weight(1f)
+                .height(72.dp)
+        ) {
+            val count = maxOf(model.size, user.size)
+            if (count < 2) return@Canvas
+
+            fun yOf(value: Double): Float =
+                (size.height * (1.0 - (value / top).coerceIn(0.0, 1.0))).toFloat()
+
+            fun xOf(index: Int): Float = size.width * index / (count - 1).toFloat()
+
+            listOf(model to green, user to you).forEach { (values, color) ->
+                var previous: Offset? = null
+                values.forEachIndexed { index, value ->
+                    val point = Offset(xOf(index), yOf(value))
+                    previous?.let { drawLine(color, it, point, strokeWidth = 2.4f) }
+                    previous = point
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun StripLegend(color: Color, label: String) {
+private fun DotLegend(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .size(9.dp)
-                .background(color, RoundedCornerShape(2.dp))
+                .size(4.dp)
+                .background(color, RoundedCornerShape(1.dp))
         )
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp)
         )

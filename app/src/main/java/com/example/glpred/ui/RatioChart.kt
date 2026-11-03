@@ -61,7 +61,7 @@ fun RatioChart(
             // Tick labels stay real text: a canvas at this size cannot draw a legible one.
             Column(
                 modifier = Modifier
-                    .height(170.dp)
+                    .height(118.dp)
                     .padding(end = 6.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End
@@ -74,7 +74,7 @@ fun RatioChart(
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(170.dp)
+                .height(118.dp)
         ) {
             val w = size.width
             val h = size.height
@@ -132,7 +132,7 @@ fun RatioChart(
             modifier = Modifier.padding(top = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            LegendEntry(youColor, "you (dots = meals)")
+            LegendEntry(youColor, "you (average per hour, ${yourPoints.sumOf { it.meals }} meals)")
             LegendEntry(modelColor, "model (every hour)")
         }
     }
