@@ -15,6 +15,7 @@ import com.example.glpred.data.DiaryEntity
 import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
+import com.example.glpred.prediction.DoseSlopes
 import com.example.glpred.prediction.LeaveOneOut
 import com.example.glpred.prediction.ModelDoseAdvisor
 import com.example.glpred.prediction.ModelVsHuman
@@ -167,7 +168,8 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                         entries = entries,
                         samples = samples,
                         validationErrorMgDl = LeaveOneOut.rmse4h(samples)?.rmse,
-                        modelCurve = modelCurveByHour(entries)
+                        modelCurve = modelCurveByHour(entries),
+                        slopeFor = { timestamp -> DoseSlopes.load(getApplication(), timestamp) }
                     )
                 }
             }
@@ -352,6 +354,9 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             )
             // Navigate first, then forget: the final-confirm card is still composed while this
             // runs, so emptying the draft before the destination changes would flash blank values.
+            suggestion?.slopeMgDlPerUnit?.let { slope ->
+                DoseSlopes.save(getApplication(), tempTimestamp, slope)
+            }
             onSuccess()
             clearDraft()
         }

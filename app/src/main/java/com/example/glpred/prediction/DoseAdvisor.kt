@@ -53,6 +53,12 @@ sealed interface DoseRecommendation {
         /** Secondary 3 h signal, shown for context; selection never uses it. */
         val predictedGlucose3hMgDl: Double? = null,
         /**
+         * `dG4/dU` at the suggested dose, in mg/dL per unit, as the model had it when it answered.
+         * Negative is the sane direction; anything above -1 is unusable and the metric says so rather
+         * than projecting with it. Captured here because the model is overwritten at the next retrain.
+         */
+        val slopeMgDlPerUnit: Double? = null,
+        /**
          * Set when the entry's time of day has no training support nearby, so the number is an
          * extrapolation rather than an interpolation. The suggestion is still shown - hiding it
          * teaches nothing - but it must carry this warning.

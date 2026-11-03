@@ -48,12 +48,19 @@ class ModelDoseAdvisor(
         atSuggestion[TrainingSample.BOLUS_INDEX] = selection.units
         val predicted3h = model.predict3h(atSuggestion)
 
+        // dG4/dU at the suggested dose, by finite difference of one unit. Linear in dose, so one step
+        // is exact; the time interactions are included because the features carry this meal's hour.
+        val oneMoreUnit = features.copyOf()
+        oneMoreUnit[TrainingSample.BOLUS_INDEX] = selection.units + 1.0
+        val slope = model.predict4h(oneMoreUnit) - selection.predictedGlucoseMgDl
+
         return DoseRecommendation.Available(
             suggestedUnits = selection.units,
             predictedGlucoseMgDl = selection.predictedGlucoseMgDl,
             inRange = selection.inRange,
             curve = selection.curve,
-            predictedGlucose3hMgDl = predicted3h
+            predictedGlucose3hMgDl = predicted3h,
+            slopeMgDlPerUnit = slope
         )
     }
 }
