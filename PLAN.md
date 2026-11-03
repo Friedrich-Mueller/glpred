@@ -28,6 +28,7 @@ worse than none.
 | History edit/delete any of the six fields, with staleness flag | done (01-11-2026): `HistoryScreen` dialog, `DataVersion` |
 | Analysis screen: carb ratio by hour, model-vs-user verdicts | done (01-11-2026), see the session note - three scorings were tried and two rejected |
 | Settings (target band, horizon) | deliberately dropped for v1: the band 90-140 and the 4 h primary horizon are settled |
+| Entry form starts empty after a save | done (03-11-2026): `DiaryViewModel.clearDraft()` |
 | Unit tests | 39 in `app/src/test`, all passing |
 
 ## The constraint that shapes the whole design
@@ -43,10 +44,16 @@ distinction per diary entry, or it will silently train on nothing.
 ## Decisions taken (31-10-2026)
 
 - Target: land as close to 90 mg/dL as possible; the acceptable band is 90-140.
-- Dose selection: among swept doses whose predicted 3 h glucose is in the band, pick the
+- Dose selection: among swept doses whose predicted **4 h** glucose is in the band, pick the
   one closest to 90 (equivalently, the lowest dose that qualifies - minimum effective
   dose is the safe insulin convention). If none qualifies, show the closest miss plus an
-  explicit "no dose brings you into range" warning and do not present it as advice.
+  explicit "no dose brings you into range" warning and do not present it as advice - unless
+  the model's own dose response is unusable, in which case no dose is offered at all
+  (03-11-2026, see the session note).
+- **One horizon: 4 h.** 3 h, 4 h and 5 h were the original idea; v1 works exclusively with
+  4 h and 5 h is not computed. The 3 h value is stored on every sample and shown as context
+  only - it never selects a dose. (Corrected 03-11-2026: this line said 3 h from 31-10-2026
+  while the code selected on 4 h.)
 - Sweep 1..25 units in **0.5-unit steps** (49 evaluations), constants in `DoseAdvisor.kt`.
   25 because nobody injects more per meal than that; half units because doses are fractional.
 - Insulin is a fractional value (`Double`) everywhere - injected amount, suggestion, and
@@ -73,8 +80,14 @@ extrapolation), and because the coefficients are readable numbers the user can b
 - Neural nets are rejected for now: they would learn the interactions implicitly, but they need
   hundreds of rows, extrapolate unpredictably, and their factors are not inspectable. Revisit only
   under the switch criteria below.
-- Linearity also guarantees what physics requires: prediction falls monotonically as the dose rises
-  across the whole 1..25 sweep. `PipelineTest` asserts that.
+- Linearity makes the dose curve **straight, not falling**: the slope is an estimated
+  coefficient. (Corrected 03-11-2026. This line used to claim that linearity guaranteed a monotone
+  curve "and `PipelineTest` asserts that" - but that test fits data generated as `260 - 6*bolus`,
+  so it could only confirm the slope it had built in.) Nothing checks the signed slope of a real
+  fit. Measured 03-11-2026 on the model trained on five seeded meals, `dG4h/dU` was positive at 22
+  of 24 hours (up to +1.35 mg/dL per unit, never below -0.008), so the sweep reported its closest
+  miss at the lowest dose - "no dose reaches the band, closest is 1 unit". That is a property of
+  the data, not of the code, and it is accepted for now; see the session note.
 
 **Feature vector (10):** `glucose, carbs, bolus, basis, time_sin, time_cos` plus the four
 interactions `carbs*sin, carbs*cos, bolus*sin, bolus*cos`. The 6-feature additive vector that
@@ -409,3 +422,72 @@ assembleDebug`; `images/analysis.png` at 540 px captured from `emulator-5554`.
   edge to edge and printed `in-sample RMSE 0` (which is what an in-sample fit reports when rows
   equal parameters, i.e. nothing), and the analysis card announced "not the model's meal" when in
   fact every meal was undecided.
+
+## 03-11-2026 - QA audit, and the 4 h decision
+
+Artifacts: `app/src/test` (39 tests, all passing) via `./gradlew :app:testDebugUnitTest`;
+`assembleDebug` and `assembleRelease` succeed; `lintDebug` reports 0 errors / 29 warnings and
+`lintVitalRelease` passes. UI exercised on `emulator-5554` with `adb shell input` + `uiautomator
+dump`; model coefficients read from `model_table` via `run-as`. All of it offline, on-device.
+
+- **Selection is 4 h, and only 4 h.** 3/4/5 h was the original idea; 4 h alone is what the app
+  trains, sweeps and stores. This file said 3 h while the code selected on 4 h (fixed above).
+- **The dose curve is inverted and nothing checks it.** `dG4h/dU` is closed form for a linear
+  model, so it was computed at every hour from the stored coefficients: positive at 22 of 24
+  hours, up to +1.35 mg/dL per unit, never below -0.008. That is why every entry printed "no dose
+  brings you into 90-140 - closest with 1 unit", and why the analysis card drew a flat 0.22 u/CU
+  model line - two views of one thing, both read on 01-11-2026 as "unvalidated model". The rows
+  behind it are seeded (five round-number meals, plus two entries a minute apart), so the sign is
+  a property of that data. It moves as real meals arrive; it is not a code defect and no guard
+  was kept.
+- **A guard was written and removed the same day, by decision.** Refusing a dose whenever the
+  slope was not negative took the review screen from "a dose on a wrong curve" to "no dose at any
+  hour", and because `suggestedBolus` then stays null it starved `ModelVsHuman` - the card that
+  shows the model becoming usable - of exactly the evidence it needs. It also hid the problem
+  rather than showing it: an inverted curve is visible on the chart, a permanently withheld dose
+  is indistinguishable from a broken app. The user's position: the analysis screen is the signal,
+  a young model is discounted by hand, and no extra machinery is wanted.
+- **The entry form no longer re-uses the previous meal.** `DiaryViewModel.clearDraft()` runs after
+  a successful save, so the next entry opens empty. Measured cause: the pre-filled `120` / `4.5` /
+  `10` plus typed `111` / `2` / `5` produced `120111` mg/dL, `105` units of basis and a 25-unit
+  suggestion, which the app accepted and stored.
+- **Session facts.** The model was retrained by a stray tap during the audit (same five rows, same
+  slopes to three decimals - the fit is deterministic) and now reports "validation error 33 mg/dL
+  (5 folds)". One diary row was deleted by a mis-tapped confirm dialog and re-entered through the
+  app form, then corrected to the minute in the History editor: 01.11.2026 18:23, 128 mg/dL, 6 CU,
+  6 u, basis 0 - now id 12, every recorded value identical, never a training row.
+- **Verified:** draft reset observed live; the review screen was exercised at 16:13 and 17:00;
+  rotation preserved the analysis state with no leak; the crash buffer stayed empty throughout.
+- **Untested by design:** the CSV import and `Train Model` were not driven, because both overwrite
+  stored data (280,142 readings; the only model).
+
+### Decisions taken after the audit (03-11-2026)
+
+- No warning layer around a weak model: the analysis screen already says when it is worth trusting.
+- The analysis chart always draws the model line, wrong included - "it will always be wrong and
+  never be perfect, so just leave it in". The chart stays independent of any advice policy.
+- The inverted sign is a data problem, expected to resolve with real meals. Optional measurement,
+  offered and not taken: refit leave-one-out and count how many folds give a negative slope.
+- `exportSchema` + a schema directory: postponed indefinitely. A build-config change serving a
+  schema change that may never happen is not worth making now.
+- The Phase-5 input sanity guard stays deferred: 25 units is already the sweep ceiling, so the bad
+  case was "reaches the cap", not "exceeds it", and a wrong meal can be deleted from history.
+
+### Backlog (open)
+
+- [ ] Nothing checks the signed slope of a fit. If a future model comes out inverted, the review
+      screen will again present the sweep floor as the closest miss, and only the flat model line
+      on the analysis card hints at it.
+- [ ] `diary.db` uses `fallbackToDestructiveMigration` with `exportSchema = false`: a version bump
+      would wipe the diary, and no migration can be written without schema JSON. **Postponed by
+      decision, not by neglect.**
+- [ ] Release configuration: unsigned, unminified, no launcher icon, `Log.d` shipping, and
+      `allowBackup="true"` over health data with no backup rules.
+- [ ] Draft entry lives in `mutableStateOf` rather than `SavedStateHandle`: survives rotation
+      (verified) but not process death.
+- [ ] No `androidTest` source set on `:app`: the Compose flows, the Room DAOs and the import path
+      are untested; a real migration test would need one.
+- [ ] `DoseSweep` re-declares the bolus feature index as the literal 2 instead of reusing
+      `TrainingSample.BOLUS_INDEX`.
+- [ ] Repeated-tap guard on Confirm & Save: no in-flight flag, so a double tap could double-insert
+      (not reproduced - navigation won the race on 03-11-2026).
