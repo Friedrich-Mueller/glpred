@@ -26,17 +26,29 @@ for years, so I finished it in 2026.
 
 ## The problem
 
-A clinic records three insulin-to-carb ratios per day, one per meal. The hours between them are
-undefined: the ratio at 10:00 is a guess. The arithmetic is trivial,
+Part of a diabetic's insulin therapy is the rule of thumb to eat 3 meals a day, one at 8:00 AM, one at 12:00 PM, and one at 6:00 PM. As different times of the day come with different insulin sensitivities, a rule of thumb is to use a Insulin-to-Carbohydrates Ratio(ICR) of 2.0 in the morning, 1.0 around noon, and 1.5 in the evening. 
+
+This rule of thumb is problematic for the following reasons:
+
+- The exact ICR at a given time may vary from patient to patient
+- A meal intake at those exact times is not always possible
+- When eating a meal at, for example, 9:00 AM, it is unclear whether a linear interpolation between the ICR values of 8am and 12pm is realistic
+
+Additionally, if a patient's blood glucose levels deviate from the healthy target value (usually 90mg/dL), immediately before a meal-related insulin injection, an additional corrective dose is required, which is based on a person's (yet again) individual Insulin Sensitivity Factor(ISF) which can range from 20 to 60mg/dL per insulin unit. A massive range. It can take a patient months to be able to make a rough estimate of their individual ICR and ISF.
+
+Apart from the aforementioned complexity, a patient has to solve the following formula for each meal, which in itself can already be challenging, for example, for children, older adults, or people who simply lack the arithmetics affinity:
 
 ```
 bolus = carbs / ICR + (glucose - target) / ISF
 ```
 
-with the block-assigned ICR and ISF as its only personal terms. Glpred estimates both as continuous
-functions of time of day from the user's own meals and doses, and suggests the dose whose predicted
-four-hour glucose lands closest to 90 mg/dL. Three values per day with guessed gaps become an
-estimate for every hour that also knows which meals produced it.
+## The solution 
+
+A machine-learning driven approach to not only learn the function of the bolus formula, but also learn the distribution of ICR factors w.r.t. the time of the day.
+
+This approach swats two flies with one swat.
+
+Ultimately, this approach would not just relieve the mathematical and cognitive burden on the patient, but ideally increase the accuracy of the calculated ICR as well as ISF, resulting in an actual net health gain due to the increased efficiency of the insulin therapy.
 
 ## How it works
 
