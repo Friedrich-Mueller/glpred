@@ -29,7 +29,7 @@ the audit, and no diary entry was saved. The only write is this document.
 | Release build | `:app:assembleRelease` | `BUILD SUCCESSFUL` → **`app-release-unsigned.apk`**, 6.97 MB, **zero signature entries in `META-INF`** |
 | Lint | `:app:lintDebug` | **0 errors, 29 warnings** |
 | Lint (release gate) | `:app:lintVitalRelease` | `BUILD SUCCESSFUL` |
-| Unit tests | `:app:testDebugUnitTest` | **10 suites / 46 tests** at audit time, **11 suites / 48 tests** after the M2 regression test - 0 failures throughout |
+| Unit tests | `:app:testDebugUnitTest` | **10 suites / 46 tests** at audit time, now **13 suites / 55 tests** - 0 failures, 0 errors, 0 skipped throughout |
 | Not run | instrumentation tests | none exist in the project |
 
 Tests, read from `app/build/test-results/testDebugUnitTest/*.xml` (not inferred from the task summary):
@@ -179,8 +179,13 @@ be above 0 — **no upper bound**; carbs and basis "≥ 0" with no ceiling; bolu
 different bug. A fat-fingered value still reaches the diary, the training set and every later prediction.
 The History editor is a second, independent door to the same hole.
 
-*Fix* (deferred by decision, but the cheapest correctness win left): one shared bounds validator —
-glucose e.g. 20-600, carbs 0-300, basis 0-200, bolus 0-50 — used by both paths.
+**Status 05.11.2026 - FIXED AND VERIFIED.** `ui/EntryLimits.kt` is the single source of the ranges -
+glucose 20-600, carbs 0-20, basis 0-30, bolus 0-40 - and the entry form, the injected-dose field and
+the History editor all validate through it. The same object renders the ranges in the fields (Material
+`supportingText` on the two screens, labels in the History dialog), so a label cannot promise a value
+the validator rejects. `EntryLimitsTest` (5 tests) pins every boundary, including the stored
+`120111 mg/dL`, basis 105 and a 100-unit bolus. Verified against the running app: 700/4/10, 120/25/10
+and 120/4/40 each stayed on the entry form, while 120/4/10 reached the review screen.
 
 ### M4 — A late failure leaves the Review button dead with no message — INSPECTION
 
@@ -195,6 +200,13 @@ cancels the collection and `isHistoryLoading` stays true).
 
 *Fix:* `try/finally` clearing the in-flight flags, and surface the failure as a message rather than a
 dead control.
+
+**Status 05.11.2026 - FIXED.** All four in-flight flags reset in `finally`: `isPredicting`,
+`isAnalysisLoading`, `isHistoryLoading`, and `isTraining`, which carried the same defect and would have
+left the retrain button answering "Training is already running" for ever after a throwing fit. The
+prediction path reports a failure as a Toast; the history flow survives a read failure instead of
+cancelling. Residual: the history screen still cannot distinguish "no meals" from "a failed read",
+because it has no error state.
 
 ### M5 — Health data is included in Android cloud backup — INSPECTION
 
@@ -249,6 +261,36 @@ gesture, which is the usual one on modern Android, would still leak the draft.
 **Status 05.11.2026 - FIXED AND VERIFIED.** System back from the form now reaches the main menu with
 the draft discarded, and the next New Entry opened with **empty** glucose, carbs and basis at today's
 date; repeating the cycle left it empty again. Crash buffer empty throughout.
+
+### M9 - The review screen claimed the model was unvalidated while the app held the figure - **REPRODUCED**
+
+`ui/DiaryViewModel.modelQuality` printed "accuracy not validated yet" whenever `TrainingResult.looRmse4h`
+was null, and after a restart it always was: `restoreStoredModel()` rebuilt the result from `model_table`,
+which stores the in-sample `rmse4h` but no leave-one-out columns, so the figure was lost on every launch.
+The Analysis screen computed the same number on demand, from the same samples.
+
+**Reproduction, observed on emulator-5554:** the review screen read `Model: 65 samples - accuracy not
+validated yet` while the Analysis screen read `68 meals recorded · 65 processed · average miss 37 mg/dL`.
+
+*Impact:* the number whose only job is to say how much the suggestion deserves trust was withheld for the
+rest of the session after any restart, and it contradicted another screen. A reader concludes the app
+never validated the model. Related: the Analysis counts line said "average miss", which read as the same
+quantity as the benchmark's `Model 41 mg/dL from 90` beside it - two different measures under one word.
+
+*Root cause:* the figure is derived, not stored. Persisting it needs a column on `model_table`, which
+would bump `diary.db`'s version and run the destructive migration (H2) - so the fix has to recompute it.
+
+*Fix:* `restoreValidation()` recomputes the leave-one-out error after restoring, with the lambda the fit
+used, and only while `DataVersion.current == trainedVersion` - on a stale model a fresh leave-one-out
+describes a refit on today's rows, not the model that answered.
+
+**Status 05.11.2026 - FIXED AND VERIFIED.** All three surfaces now agree on 37 mg/dL: main
+`Model: 65 samples, validation error 37 mg/dL (in-sample 29, 65 folds)`, review
+`Model accuracy within 37 mg/dL (65 meals)`, analysis
+`68 meals recorded · 65 processed · validation error 37 mg/dL (leave-one-out)`. The analysis line was
+renamed to say what it is, and the review line now reads "accuracy within X mg/dL (N meals)" instead of
+"typical miss … on meals it did not see". The `41 mg/dL` is not validation and never was: it is the
+benchmark's average distance from 90 mg/dL.
 
 ### L1 — `Log.d` ships in release — INSPECTION
 
@@ -307,9 +349,9 @@ rejected with "whole number of units" rather than being explained.
 - **Timestamp boundary** — `TrainingSamples.toWallClockMillis` is the only epoch/wall-clock
   crossing; `MealHistory`, `TrainingRunner` and the analysis path all reuse it, and no second
   implementation exists.
-- **Dose sweep** — 49 evaluations, band membership first then nearest to 90, closest-miss path with
+- **Dose sweep** - 79 evaluations (1..40 in 0.5 steps; the ceiling is the diary's accepted bolus
+  maximum, held by `SweepCeilingTest`), band membership first then nearest to 90, closest-miss path with
   `inRange = false`, integer stepping. Read and found correct.
-- **Import pipeline** — whole-table replace inside one transaction, index dropped and rebuilt around
   the insert, statements closed in `finally`, empty CSV rejected, and both parse and write failures
   surfaced.
 - **`MealHistory`** consumes `TrainingSamples.build`, so "trainable" cannot drift from "labelled row".
@@ -351,9 +393,10 @@ Blockers first. Each item is a separate approval.
 4. ~~**M2** — pass the labelled samples to `PredictionCoverage.hoursFrom`; test the `IDEA.md:15`
    requirement (an unlabelled meal does not create coverage).~~ **DONE 05.11.2026** — fixed and
    pinned by `TrainingRunnerCoverageTest`; suite now 48 tests.
-5. **M3** — one shared bounds validator for the entry form and the History editor.
-6. **M4** — `try/finally` around the in-flight flags in `validateAndStartReview`,
-   `refreshAnalysis` and the history mapping.
+5. ~~**M3** — one shared bounds validator for the entry form and the History editor.~~ **DONE 05.11.2026**
+6. ~~**M4** — `try/finally` around the in-flight flags in `validateAndStartReview`,
+   `refreshAnalysis` and the history mapping.~~ **DONE 05.11.2026** — plus `isTraining`, and the
+   restore-time accuracy that closes M9.
 7. **M5** — `allowBackup="false"`, or backup rules excluding both databases.
 8. **M7** — scrollable content or a fixed bottom action bar on the three form screens.
 9. **M6** — save-once guard. **L2** — return a result from `updateEntry` and report a failed

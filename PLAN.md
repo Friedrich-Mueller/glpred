@@ -610,6 +610,23 @@ The audit committed nothing; the fixes below are the only source changes it caus
   `TrainingRunnerCoverageTest` through fake DAOs - a 03:15 meal with no label expects
   `coveredHours == {12, 13}`, and a second case labels the same meal and expects hour 3 to appear, so the
   first assertion cannot pass for a trivial reason.
-- Still open from the audit: H1 (release config), H2 (destructive migration), M3, M4, M5, M6, M7, L1-L4,
+- **M3, M4 fixed and the sweep ceiling raised, same day.** `ui/EntryLimits.kt` holds the four ranges
+  (glucose 20-600, carbs 0-20, basis 0-30, bolus 0-40); the entry form, the injected-dose field and the
+  History editor all validate through it, and the same object renders the ranges in the fields. The old
+  "anything up to 100" bolus check is gone. All four in-flight flags (`isPredicting`,
+  `isAnalysisLoading`, `isHistoryLoading`, `isTraining`) reset in `finally` - a throwing fit used to leave
+  the retrain button answering "Training is already running" for ever. Because the diary now accepts a
+  40-unit bolus the sweep runs 1..40 (79 evaluations, was 49), and `SweepCeilingTest` holds
+  `SWEEP_MAX_UNITS` to `EntryLimits.BOLUS` so the two cannot drift.
+- **M9 fixed, same day.** The review screen said "accuracy not validated yet" for the whole session after
+  any restart, because the leave-one-out error is not stored with the model - `model_table` has no such
+  column and adding one would bump `diary.db` through the destructive migration. The Analysis screen
+  computed it meanwhile. `restoreValidation()` now recomputes it on restore with the fit's own lambda,
+  guarded on `DataVersion.current == trainedVersion` so a stale model is never graded by a refit on
+  today's rows. Main, review and analysis now all report 37 mg/dL. The analysis line said "average miss",
+  which sat beside the benchmark's "41 mg/dL from 90" and read as the same quantity; it now says
+  "validation error 37 mg/dL (leave-one-out)", and the review line says "accuracy within 37 mg/dL
+  (65 meals)" instead of "typical miss on meals it did not see".
+- Still open from the audit: H1 (release config), H2 (destructive migration), M5, M6, M7, L1-L4,
   and every runtime path never exercised - CSV import, retrain, History edit/delete, CSV export, the
   Analysis screen, rotation, process death, small-screen layout. No `androidTest` source set exists.
