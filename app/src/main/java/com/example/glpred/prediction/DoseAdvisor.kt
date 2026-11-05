@@ -15,11 +15,13 @@ const val TARGET_HIGH_MG_DL = 140.0
 const val TARGET_IDEAL_MG_DL = 90.0
 
 /**
- * Dose sweep: 1..25 units in 0.5-unit steps - 49 evaluations. 25 because nobody injects more per
- * meal than that; half units because the app stores fractional doses and 0.5-unit pens exist.
+ * Dose sweep: 1..40 units in 0.5-unit steps - 79 evaluations. The ceiling is the largest bolus the
+ * diary accepts (`ui/EntryLimits.BOLUS`, 40 units), because offering a dose the form then rejects is
+ * worse than offering none; `SweepCeilingTest` keeps the two in step. Half units because the app
+ * stores fractional doses and 0.5-unit pens exist.
  */
 const val SWEEP_MIN_UNITS = 1.0
-const val SWEEP_MAX_UNITS = 25.0
+const val SWEEP_MAX_UNITS = 40.0
 const val SWEEP_STEP_UNITS = 0.5
 
 /** The entry the advisor has to answer for. */
