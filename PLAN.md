@@ -16,7 +16,7 @@ worse than none.
 | CGM import from the LibreView CSV | done: replaces the table, ~280k rows in ~0.6 s; the stored span is reported on the fetch screen |
 | Navigation / main menu | done: `main`, `enter_data`, `confirm_data`, `final_confirm`, `fetch_data` |
 | Entry flow: no insulin on input, review + prediction, then the dose actually injected | done, running against `ModelDoseAdvisor` |
-| Dose contract (`prediction/DoseAdvisor.kt`) | done: sweep 1..25 in 0.5 steps, `Available` / `Unavailable` |
+| Dose contract (`prediction/DoseAdvisor.kt`) | done: sweep 1..40 in 0.5 steps, `Available` / `Unavailable` |
 | Suggestion persistence (`suggestedBolus`, `predictedGlucose` on the entry) | done, diary schema v2 |
 | CGM -> 1-minute grid (dedupe, DST, interpolation) | done: `preprocessing/CgmSeries.kt`, parity-verified |
 | Label generation (3 h + 4 h lookahead) | done: `LabelGenerator`; 5 h dropped, 4 h is primary |
@@ -56,8 +56,10 @@ distinction per diary entry, or it will silently train on nothing.
   4 h and 5 h is not computed. The 3 h value is stored on every sample and shown as context
   only - it never selects a dose. (Corrected 03-11-2026: this line said 3 h from 31-10-2026
   while the code selected on 4 h.)
-- Sweep 1..25 units in **0.5-unit steps** (49 evaluations), constants in `DoseAdvisor.kt`.
-  25 because nobody injects more per meal than that; half units because doses are fractional.
+- Sweep 1..40 units in **0.5-unit steps** (79 evaluations), constants in `DoseAdvisor.kt`. The ceiling
+  is the bolus maximum the diary accepts (`ui/EntryLimits.BOLUS`, raised to 40 on 05-11-2026), so no
+  dose can be suggested that the form would refuse to record; `SweepCeilingTest` holds the two together.
+  Half units because doses are fractional.
 - Insulin is a fractional value (`Double`) everywhere - injected amount, suggestion, and
   the stored column - so 0.5-unit pens need no rebuild.
 - No backfilling: the app is used immediately at a meal, never to reconstruct yesterday.
