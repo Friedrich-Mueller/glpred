@@ -2,14 +2,19 @@
 
 [![Roadmap (Kanban Board)](https://img.shields.io/badge/Roadmap-GitHub_Projects-blue?style=flat-square&logo=github)](https://github.com/users/Friedrich-Mueller/projects/4)
 
-Glpred is a small Android app for predicting blood glucose after a meal. Given CGM data and a meal,
-it sweeps a range of insulin doses and predicts where each one would leave the user's glucose four
-hours later, so the dose that lands in a normal range can be picked.
+Glpred is a small blood glucose prediction android app I quickly scrambled together. Its purpose is,
+given meal data and continuous glucose monitor(GCM) data, to combine the two and train a ML model to
+predict future blood glucose levels - allowing to find the right insulin amount to maintian/achieve
+desired (healthy) levels of blood glucose after 3-5 hours.
 
-I had the idea and a proof of concept around 2020, then abandoned it. Calculating a dose the
-traditional way is simpler than getting CGM data off a sensor and onto a phone, and the pipeline
-demands a precision from the user that a wrong value would punish. The unfinished state bothered me
-for years, so I finished it in 2026.
+I came up with its idea and proof of concept around 2018 already, but technical limitations and the
+way the training data ultimately is sourced by the users themselves, made it unfeasible to finish
+its development. The main reason being that the complexity of the traditional calculations for
+required insulin amount is outweighed by the complexity of transferring CGM data onto a phone, and
+the meticulosity that is required by the user to feed the data pipeline without mistakes (which
+would directly translate into medical risks).
+
+Since I was bothered by the unfinished state for years, I decided to finish it in 2026, regardless.
 
 > **It is a personal experiment, not a medical device.** It does not replace on-the-fly correction
 > dosing, and no insulin decision should rest on its output alone.
