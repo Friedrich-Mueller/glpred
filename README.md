@@ -58,7 +58,7 @@ Ultimately, this approach would not just relieve the mathematical and cognitive 
    is missing on purpose, because the app is about to propose it.
 2. **<ins>A dose is proposed</ins>**
 
-   Every half unit from 1 to 25 is run through the model, and the dose whose predicted four-hour
+   Every half unit from 1 to 40 is run through the model, and the dose whose predicted four-hour
    glucose lands closest to 90 mg/dL is shown. If nothing lands in the 90 to 140 band, the screen
    says so instead of dressing up the closest miss as advice.
 
