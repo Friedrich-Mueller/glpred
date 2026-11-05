@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -60,9 +61,11 @@ fun EnterDataScreen(
         mutableStateOf(viewModel.tempTime.toDraftTimeOrNull() ?: LocalTime.now())
     }
 
-    var glucoseStr by remember { mutableStateOf(viewModel.tempGlucose) }
-    var carbsStr by remember { mutableStateOf(viewModel.tempCarbs) }
-    var basisStr by remember { mutableStateOf(viewModel.tempBasis) }
+    // rememberSaveable, not remember: rotation recreates the Activity, and the ViewModel copy of
+    // these three is only written when Review Entry is pressed - so a half-typed meal was lost.
+    var glucoseStr by rememberSaveable { mutableStateOf(viewModel.tempGlucose) }
+    var carbsStr by rememberSaveable { mutableStateOf(viewModel.tempCarbs) }
+    var basisStr by rememberSaveable { mutableStateOf(viewModel.tempBasis) }
 
     val formattedDate = remember(selectedDate) { selectedDate.format(DRAFT_DATE) }
     val formattedTime = remember(selectedTime) { selectedTime.format(DRAFT_TIME) }
