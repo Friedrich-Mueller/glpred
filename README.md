@@ -92,8 +92,9 @@ The model is benchmarked against the user's performance. One graph shows the lea
 another shows how the model performs against the user - how far each of the two doses landed from the
 target of 90 mg/dL - which indicates when the model begins to outperform the user. That point is where
 the model's predictions become more accurate than the user's would have been.
-
+<p align="center">
 <img src="images/analysis.png" width="270" alt="Analysis screen with four cards: Your data, Insulin-Carb-Ratio throughout the day, Benchmarking Model vs User with two running-average lines of distance from target over the whole history, and Last 20 with the same two lines rescaled to the recent window">
+</p>
 
 ## Screenshots
 
