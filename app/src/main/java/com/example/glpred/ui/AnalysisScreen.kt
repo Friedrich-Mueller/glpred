@@ -222,16 +222,12 @@ private fun BenchmarkCard(analysis: ModelVsHuman) {
             Line(comparisonLine(analysis), muted = true)
 
             Figure("Average distance from 90 mg/dL, meal by meal") {
-                MissPlot(model = modelMiss, user = userMiss)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 34.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Caption("first meal")
-                    Caption("meal ${pairs.size}")
-                }
+                MissPlot(
+                    model = modelMiss,
+                    user = userMiss,
+                    startLabel = "first meal",
+                    endLabel = "meal ${pairs.size}"
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     DotLegend(Color(0xFF2E7D32), "model's dose")
                     DotLegend(MaterialTheme.colorScheme.primary, "your dose")
@@ -251,14 +247,20 @@ private fun RecentCard(analysis: ModelVsHuman) {
 
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SectionTitle("Last ${recent.size}")
+            SectionTitle("Last ${recent.size} meals")
             if (recent.size < 2) {
                 Line("Not enough scored meals in the recent window yet.", muted = true)
                 return@Column
             }
+            // The window's real meal numbers, so it can be placed on the history above instead of
+            // floating as an unlabelled second chart.
+            val lastMeal = analysis.benchmark.scored
+            val firstMeal = lastMeal - recent.size + 1
             MissPlot(
                 model = runningAverage(recent.map { it.first }),
-                user = runningAverage(recent.map { it.second })
+                user = runningAverage(recent.map { it.second }),
+                startLabel = if (firstMeal <= 1) "first meal" else "meal $firstMeal",
+                endLabel = "meal $lastMeal"
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 DotLegend(Color(0xFF2E7D32), "model's dose")
@@ -339,18 +341,30 @@ private fun runningAverage(values: List<Double>): List<Double> {
  *
  * No per-meal verdict is drawn: a verdict discards how far each side was, which is the only quantity
  * worth comparing, and it degenerates into ties once the user starts following the model.
+ *
+ * The same picture appears twice on the screen - over the whole history and over the trailing window -
+ * so the plot carries its own frame and its own meal labels. Without them the two read as the same span
+ * at two scales, and the window's "last twenty" cannot be placed on the history above it.
  */
 @Composable
-private fun MissPlot(model: List<Double>, user: List<Double>) {
+private fun MissPlot(
+    model: List<Double>,
+    user: List<Double>,
+    startLabel: String,
+    endLabel: String
+) {
     val green = Color(0xFF2E7D32)
     val you = MaterialTheme.colorScheme.primary
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
     val ceiling = maxOf(model.maxOrNull() ?: 1.0, user.maxOrNull() ?: 1.0).coerceAtLeast(1.0)
     val top = ceil(ceiling / 20.0) * 20.0
+    val plotHeight = 72.dp
 
     Row(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
-                .height(72.dp)
+                .height(plotHeight)
                 .padding(end = 6.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.End
@@ -359,26 +373,46 @@ private fun MissPlot(model: List<Double>, user: List<Double>) {
             Caption((top / 2).roundToInt().toString())
             Caption("0")
         }
-        Canvas(
-            modifier = Modifier
-                .weight(1f)
-                .height(72.dp)
-        ) {
-            val count = maxOf(model.size, user.size)
-            if (count < 2) return@Canvas
+        // The labels sit under the canvas in this same column, so they span exactly the plot's width.
+        Column(modifier = Modifier.weight(1f)) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(plotHeight)
+            ) {
+                val count = maxOf(model.size, user.size)
+                if (count < 2) return@Canvas
 
-            fun yOf(value: Double): Float =
-                (size.height * (1.0 - (value / top).coerceIn(0.0, 1.0))).toFloat()
+                fun yOf(value: Double): Float =
+                    (size.height * (1.0 - (value / top).coerceIn(0.0, 1.0))).toFloat()
 
-            fun xOf(index: Int): Float = size.width * index / (count - 1).toFloat()
+                fun xOf(index: Int): Float = size.width * index / (count - 1).toFloat()
 
-            listOf(model to green, user to you).forEach { (values, color) ->
-                var previous: Offset? = null
-                values.forEachIndexed { index, value ->
-                    val point = Offset(xOf(index), yOf(value))
-                    previous?.let { drawLine(color, it, point, strokeWidth = 2.4f) }
-                    previous = point
+                // Half-way gridline: it is the line the middle tick label names.
+                val mid = yOf(top / 2)
+                drawLine(gridColor, Offset(0f, mid), Offset(size.width, mid), strokeWidth = 1f)
+
+                listOf(model to green, user to you).forEach { (values, color) ->
+                    var previous: Offset? = null
+                    values.forEachIndexed { index, value ->
+                        val point = Offset(xOf(index), yOf(value))
+                        previous?.let { drawLine(color, it, point, strokeWidth = 2.4f) }
+                        previous = point
+                    }
                 }
+
+                // Axes last, so they read as a frame rather than as another data line.
+                drawLine(axisColor, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 2f)
+                drawLine(axisColor, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 2f)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 3.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Caption(startLabel)
+                Caption(endLabel)
             }
         }
     }

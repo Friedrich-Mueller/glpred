@@ -475,8 +475,9 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 val validation = result.looRmse4h
                 val base = when {
                     validation != null ->
-                        "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL " +
-                            "(in-sample ${result.rmse4h.toInt()}, ${result.looFolds4h} folds)"
+                        // One number, the honest one: the in-sample figure and the fold count were
+                        // implementation vocabulary sitting beside a suggestion.
+                        "Model: ${result.samples4h} samples, validation error ${validation.toInt()} mg/dL"
                     result.restoredAtStartup ->
                         "Model: ${result.samples4h} samples, restored from storage - the validation " +
                             "error is recomputed at the next import"
