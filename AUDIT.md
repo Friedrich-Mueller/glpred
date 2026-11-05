@@ -89,6 +89,18 @@ the trained model.
 approval), a real `Migration(3,4)`, and no `fallbackToDestructiveMigration()` on the release path.
 Interim mitigation already shipped: CSV export from the History top bar.
 
+**Status 05.11.2026 - MITIGATED (minimal fix).** `fallbackToDestructiveMigration()` is gone from
+`DiaryDatabase`; the version stays at 3, so nothing changes for an existing database. The
+difference is the failure mode on the day someone bumps the version without a `Migration`: Room
+throws `The required migration ... was not found` on open, with both tables still on disk, instead
+of dropping them first and reporting success. Loud-and-intact replaces silent-and-gone.
+
+Deliberately **not** done, and still open: `exportSchema = true` + a `schemas/` directory, a
+written `Migration(3, 4)`, and a `MigrationTestHelper` test. Those are only worth their
+build-config, dependency and `androidTest` cost once a schema change actually exists - decision
+taken 05.11.2026, not neglect. Until then the CSV export is the only copy of the diary, and it
+cannot be read back into the app (see the import gap below).
+
 ### M1 — The entry screen silently replaces the meal's date and time — **REPRODUCED**
 
 `ui/EnterDataScreen.kt:51-52`

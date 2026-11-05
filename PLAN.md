@@ -293,8 +293,10 @@ half-way:
   meal or importing more CGM leaves the stored model in use, deliberately for now: the model is not
   wrong, only not yet retrained, and flagging every entry would teach the user to ignore the flag.
   Revisit once retraining is cheap enough to run automatically.
-- `diary.db` uses destructive migration, so the first schema change after real use begins would
-  silently delete the meals. A written migration must exist before then, not after.
+- `diary.db` has no destructive fallback any more, so the first version bump without a written
+  migration fails loudly on open rather than deleting the meals. The migration still has to be
+  written before that day; until it is, the CSV export is the only copy - and it cannot yet be
+  imported back.
 
 ---
 
@@ -526,9 +528,10 @@ dump`; model coefficients read from `model_table` via `run-as`. All of it offlin
 - [ ] Nothing checks the signed slope of a fit. If a future model comes out inverted, the review
       screen will again present the sweep floor as the closest miss, and only the flat model line
       on the analysis card hints at it.
-- [ ] `diary.db` uses `fallbackToDestructiveMigration` with `exportSchema = false`: a version bump
-      would wipe the diary, and no migration can be written without schema JSON. **Postponed by
-      decision, not by neglect.**
+- [x] `diary.db` no longer falls back to destructive migration (05-11-2026): a version bump with no
+      `Migration` now throws on open, rows intact, instead of dropping both tables first. Still
+      open and deferred: `exportSchema` + `schemas/` + a written migration, worth doing only when
+      a schema change is actually wanted.
 - [ ] Release configuration: unsigned, unminified, no launcher icon, `Log.d` shipping, and
       `allowBackup="true"` over health data with no backup rules.
 - [ ] Draft entry lives in `mutableStateOf` rather than `SavedStateHandle`: survives rotation
