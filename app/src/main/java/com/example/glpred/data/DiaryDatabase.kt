@@ -21,9 +21,11 @@ abstract class DiaryDatabase : RoomDatabase() {
                     DiaryDatabase::class.java,
                     "diary.db"
                 )
-                    // Development only: a schema change drops the diary instead of migrating it.
-                    // Replace with real migrations once entries are worth preserving across updates.
-                    .fallbackToDestructiveMigration()
+                    // Deliberately no fallbackToDestructiveMigration: this file holds the hand-entered
+                    // meals, the only data in the app that cannot be re-created. With the fallback, a
+                    // version bump that forgot its Migration would drop both tables before any screen
+                    // could warn; without it Room throws on open and the rows are still on disk
+                    // (AUDIT.md H2). A bump therefore needs a written Migration in the same commit.
                     .build()
                 INSTANCE = instance
                 instance
