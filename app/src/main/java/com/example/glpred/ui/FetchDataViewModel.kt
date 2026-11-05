@@ -66,6 +66,15 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
     var storedSpan by mutableStateOf<CgmSpan?>(null)
         private set
 
+    /**
+     * End of the readings that the last import replaced, when that end was *later* than the new
+     * file's. Picking an old export by mistake replaces good coverage with a shorter series, and
+     * every meal after the new end loses its 4 h label - so the screen says so instead of only
+     * showing a span that silently moved backwards.
+     */
+    var replacedLongerSpanEndMs by mutableStateOf<Long?>(null)
+        private set
+
     init {
         refreshStoredSpan()
     }
@@ -84,6 +93,7 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
         isImporting = true
         importSuccess = false
         errorMessage = null
+        replacedLongerSpanEndMs = null
 
         viewModelScope.launch {
             val startTime = System.currentTimeMillis()
@@ -95,6 +105,10 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
 
                     val loaded = CgmCsvLoader.load(input)
                     val t1 = System.currentTimeMillis()
+
+                    // Read before the table is replaced: only the old end can show that the new
+                    // file reaches less far.
+                    val previousSpan = cgmDao.storedSpan()
 
                     require(loaded.readings.isNotEmpty()) {
                         "The file does not contain any glucose reading."
@@ -140,7 +154,11 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
 
                     Log.d("PERF", "CgmCsvLoader.load: ${t1 - t0}ms | SQLite Batch Insert (${loaded.readings.size} rows): ${t2 - t1}ms | TOTAL: ${t2 - t0}ms")
 
-                    loaded.readings.size
+                    Triple(
+                        loaded.readings.size,
+                        previousSpan?.lastMs,
+                        loaded.readings.maxOf { it.timestampMs }
+                    )
                 }
             }
 
@@ -149,10 +167,12 @@ class FetchDataViewModel(application: Application) : AndroidViewModel(applicatio
             isImporting = false
 
             result.fold(
-                onSuccess = { count ->
+                onSuccess = { (count, previousEnd, newEnd) ->
                     importedCount = count
                     importSuccess = true
                     successfulImports++
+                    replacedLongerSpanEndMs =
+                        if (previousEnd != null && previousEnd > newEnd) previousEnd else null
                     // The table was just replaced: the summary must reflect the new span.
                     refreshStoredSpan()
                 },

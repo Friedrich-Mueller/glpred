@@ -126,6 +126,19 @@ fun FetchDataScreen(
                 )
             }
 
+            // An import is allowed to shorten the stored series; it is not allowed to do so quietly.
+            viewModel.replacedLongerSpanEndMs?.let { previousEnd ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "This file ends earlier than the readings it replaced " +
+                        "(${formatWallClock(previousEnd)}). Meals dated after the new end cannot be " +
+                        "labelled until a newer export is imported.",
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             viewModel.storedSpan?.let { span ->
                 val first = span.firstMs
                 val last = span.lastMs
