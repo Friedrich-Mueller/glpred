@@ -12,8 +12,12 @@ settings screen). Those deliberately supersede the original sketch in `IDEA.md` 
 about 20 inferences over 1-20 units). Measured against `IDEA.md` alone the dose sweep and the horizon
 would look wrong; they match the decision record, so they are not findings.
 
-Nothing in this file has been fixed. No source file, Gradle file, database or app data was modified by
-the audit, and no diary entry was saved. The only write is this document.
+Status: the audit itself modified nothing. Every fix listed below was made afterwards, in separate
+approved rounds, and each finding carries a **Status** line saying whether it is fixed and how it was
+verified. App data *was* changed during verification on 05.11.2026, with permission, and the effects are
+recorded in M10: a real LibreView export was imported (65 -> 5 labelled meals), one disposable meal was
+saved and deleted, and one seeded meal was deleted by the delete test. The diary is at 67 meals; the
+CSV exported before those runs holds all 68 originals.
 
 ---
 
@@ -75,7 +79,11 @@ runs, so the debug-priority logging of L1 also ships.
 
 *Fix:* a `release` build type with `isMinifyEnabled = true` plus Room keep-rules, and a signing config
 (upload key or Play App Signing). Verify with `assembleRelease` and `lintVitalRelease`. Already in the
-`PLAN.md` backlog; it is the hard blocker for any release verdict.
+`PLAN.md` backlog.
+
+**Reclassified 05.11.2026.** H1 is not a defect *in the application*: no behaviour is wrong and
+`installDebug` still produces a working app. It is a missing capability of the shipping process, so it
+is reported under **Distribution** in §6 instead of as an application blocker.
 
 ### H2 — Any future schema change silently deletes the diary — INSPECTION
 
@@ -155,7 +163,8 @@ the reproduction on the freshly built APK - date picker to `01.11.2026`, fill `1
 system back - and the form now returns with **`01.11.2026` / `15:33`** intact instead of today's clock.
 Build: `:app:compileDebugKotlin` + `:app:testDebugUnitTest` green; the new symbols
 (`discardDraft`, `setDraftDate`, `setDraftTime`, `toDraftDateOrNull`) verified present in `classes.dex`.
-Rotation is covered by the same write-back but was **not** exercised on the device.
+Rotation was covered by the same write-back but not exercised on the device at that time; it has
+since been, and the three text fields behave differently - see **M11**.
 
 ### M2 — The extrapolation guard counts hours that never trained the model — INSPECTION
 
@@ -333,6 +342,58 @@ renamed to say what it is, and the review line now reads "accuracy within X mg/d
 "typical miss … on meals it did not see". The `41 mg/dL` is not validation and never was: it is the
 benchmark's average distance from 90 mg/dL.
 
+### M10 — An import that reduces CGM coverage silently costs training labels — **REPRODUCED**
+
+`ui/FetchDataViewModel.kt` reports how many rows it loaded and the new span, then
+`LaunchedEffect(successfulImports)` retrains. Nothing anywhere reports what the import did to the
+training set.
+
+**Reproduction, observed on emulator-5554 on 05.11.2026:** importing the repository's own export
+(`MaxMustermann_glucose_20-10-2026.csv`, 280,142 readings, span ending `20.10.2026 12:10`) replaced a
+stored table of 284,042 readings that ended `21.11.2026 23:30`. The screen said
+`Successfully loaded 280142 raw readings in 1.1 seconds`, the span card updated correctly, the import
+measured `CgmCsvLoader.load: 731ms | SQLite Batch Insert (280142 rows): 384ms | TOTAL: 1115ms` - and the
+labelled set fell from **65 meals to 5**, because the 4 h label needs CGM data that no longer exists.
+The model promptly refit on 5 rows and the review screen began reporting
+`Model accuracy within 33 mg/dL (5 meals)`.
+
+*Impact:* replacing the table wholesale is lossless only for a **newer** cumulative export, and the app
+neither checks nor says so. The only hint is a sample count on a different screen. The consequence is
+not corruption but a silent, large loss of training data - and, through M2's coverage guard, an app that
+now hedges on nearly every suggestion.
+
+*Fix:* after a successful import, report labelled meals before -> after ("65 -> 5 labelled meals;
+re-import a newer export to restore them"), and warn when the incoming span ends earlier than the
+stored one. Both numbers are already computed for the span card and the model status.
+
+*Not a defect in the import itself:* parsing, the batch insert, the span card and the auto-retrain all
+behaved as designed. This is a reporting gap.
+
+### M11 — Rotation discards the entry form's typed values — **REPRODUCED**
+
+`ui/EnterDataScreen.kt:63-65`
+
+```
+var glucoseStr by remember { mutableStateOf(viewModel.tempGlucose) }
+var carbsStr   by remember { mutableStateOf(viewModel.tempCarbs) }
+var basisStr   by remember { mutableStateOf(viewModel.tempBasis) }
+```
+
+`remember`, not `rememberSaveable`, and the ViewModel copy is written **only** by *Review Entry*
+(`ui/DiaryViewModel.kt:340-342`). On rotation the Activity is recreated, the `remember` blocks are
+re-evaluated, and the seed is still the empty string.
+
+**Reproduction, observed on emulator-5554:** typed `150` into Glucose on New Entry, then
+`settings put system user_rotation 1` -> the field came back **empty**; rotating back to portrait left
+it empty. Date and time survived, because M1's fix writes them into the ViewModel on every picker change
+- which is exactly why this gap outlived that fix.
+
+*Impact:* LOW to MEDIUM. Typed values are lost and the meal has to be retyped; nothing is stored wrong
+and nothing crashes. It matters because the app is used *at* a meal, with one hand.
+
+*Fix:* `rememberSaveable` for the three strings (and a `Saver` for the two pickers), or write each field
+into the ViewModel as it changes - the latter is consistent with how date and time already work.
+
 ### L1 — `Log.d` ships in release — INSPECTION
 
 `ui/FetchDataViewModel.kt:141` logs import timing. The line carries no personal data (row count,
@@ -413,19 +474,22 @@ rejected with "whole number of units" rather than being explained.
 
 ## 4. Not verified — the honest gaps
 
-| Area | Why |
-|---|---|
-| Import of a real LibreView CSV | Overwrites 280 000 stored readings — needs permission |
-| "Retrain on stored data" | Overwrites the only model — needs permission |
-| Saving an entry, double-tap (M6) | Would pollute the diary — the flow was stopped at the review screen |
-| History screen, edit dialog, delete, CSV export | Not opened this session |
-| Analysis screen, charts, empty and partial states | Not opened this session |
-| Rotation, backgrounding, process death, back-stack under stress | Not exercised |
-| Release build, R8, `lintDebug`, `lintVitalRelease` | Not run |
-| Small-screen / large-font layout (M7) | Only one tall emulator was available |
-| Instrumented tests | None exist in the project |
+Most of this table has since been closed; it is kept because the audit's own limits should stay visible.
+What is still genuinely unverified:
 
----
+| Area | Why | State |
+|---|---|---|
+| Instrumented tests | None exist in the project | **open** - the Compose flows, both DAOs, the import and the SAF export have no automated coverage |
+| mmol/L LibreView exports | No such file available | **open** - `CgmCsvLoader` matches on `contains("historic glucose")`, which a `mmol/L` header also satisfies, so a `7.2` reading could be parsed as 7.2 mg/dL. Unproven, and the worst outcome if true |
+| Large system font / small viewport | Only two sizes were used | partial: one short viewport (1080x1600) was exercised for M7 |
+| H2's loud-failure path | Testing needs a v4 database, which the v3 build could then not reopen | **unverified by design** - the point is to fail loudly, not to be walked into |
+| M6 double-tap race | Triggering it writes a real duplicate | verified by construction only |
+
+Verified since the audit opened, on emulator-5554: the CGM import (measured in M10), the automatic
+retrain, a manual retrain from a stale state, saving an entry, deleting an entry, the stale wording
+(`Out of date - the diary changed after this fit`, then `Up to date with the stored data` after
+retraining), reopening after a hard `am force-stop` (the analysis screen recomputed the same
+leave-one-out figure), and rotation (which found M11).
 
 ## 5. Ordered remediation plan
 
@@ -450,6 +514,9 @@ Blockers first. Each item is a separate approval.
 9. ~~**M6** — save-once guard. **L2** — return a result from `updateEntry` and report a
    failed write.~~ **DONE 05.11.2026**
 10. **L1** and **L3** — release logging and a launcher icon, as part of H1.
+11. **M11** — `rememberSaveable` for the three entry strings.
+12. **M10** — report the labelled-meal count before -> after an import, and warn when the incoming span
+    is older than the stored one.
 
 After items 1-3, re-run `assembleDebug`, `testDebugUnitTest`, `lintDebug` and `assembleRelease`, and
 repeat the M1 reproduction on the emulator. After items 4-9, add the missing `androidTest` coverage for
@@ -459,19 +526,49 @@ the entry flow, the DAOs and the import, since none exists today.
 
 ## 6. Verdict
 
-**NOT READY.**
+Two questions, answered separately. Collapsing them into one word is what made the first draft of this
+section misleading.
 
-Three independent reasons, each sufficient on its own:
+### 6.1 The application — does the software behave?
 
-1. The release artifact cannot be produced (H1).
-2. The only irreplaceable data can be destroyed by an app update (H2).
-3. A reproduced logic defect stores a different meal time than the app displays (M1), and no
-   instrumentation test has ever exercised the UI.
+**CONDITIONALLY VERIFIED.**
 
-The mathematics, the timestamp boundary and the dose sweep are in good shape. The weaknesses are in the
-Android shell around them — release configuration, state hoisting, in-flight flags and input bounds
-— which matches `PLAN.md`'s own deferral list.
+Every defect that was reproduced has been fixed and re-measured: M1 (the stored time now matches the
+displayed time), M8 (an abandoned draft no longer pre-fills), M9 (all three surfaces agree on the
+leave-one-out figure). M2-M5, M7 and L2 are fixed and verified by measurement or in the merged artefact.
+No crash occurred in any session - including a hard process death, an import of 280,142 rows, and a
+deliberately starved 5-sample model.
 
-That is also consistent with the product case's own admission (`IDEA.md:17`) that the project “lacks
-robustness in comparison to conventional approaches”. This audit does not contradict the admission; it
-localises it — the weak parts are the Android shell and the release wiring, not the arithmetic.
+The conditional is real, and rests on three things that are not claims about code quality:
+
+1. **M10 and M11 are open.** Both are reproducible; neither corrupts data. M11 loses typed input, M10
+   loses labels without saying so.
+2. **Zero instrumented tests.** The UI, both DAOs and the import path are covered only by manual runs; a
+   green JVM suite says nothing about a Compose flow.
+3. **The units assumption is untested.** If a mmol/L export is read as mg/dL, every label and every dose
+   suggestion is wrong, and no existing test would catch it.
+
+The arithmetic, the timestamp boundary and the dose sweep are in good shape, and the behaviour under a
+starved model was observed rather than assumed: with 5 samples the app refused to recommend a dose and
+said why.
+
+### 6.2 Distribution — can this artefact be given to someone?
+
+**NOT DISTRIBUTABLE.**
+
+`app-release-unsigned.apk` cannot be installed, there is no launcher icon (L3), `Log.d` ships (L1), and
+a release build has never been signed. That is H1 plus two cosmetics, and none of it is a defect in the
+application - which is why it does not vote in 6.1.
+
+If anyone other than the author is meant to use the app, two further gaps sit on this axis rather than
+the code axis: the loader accepts only English LibreView headers (a German export is rejected outright)
+and the mg/dL assumption above. Both are correctness problems *for other users* and invisible to the
+current one.
+
+### 6.3 What this does not say
+
+It does not say the app is bug-free. It says the paths that were exercised behaved, the paths that were
+not are listed in §4, and the two remaining defects are small and known. It also does not contradict
+`IDEA.md:17`'s admission that the project "lacks robustness in comparison to conventional approaches" -
+it localises it: the arithmetic and the timestamp handling are solid, and the weak spots are the Android
+shell, the release wiring, and the assumptions about whose data this is.

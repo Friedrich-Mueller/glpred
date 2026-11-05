@@ -536,6 +536,15 @@ dump`; model coefficients read from `model_table` via `run-as`. All of it offlin
       `allowBackup="true"` over health data with no backup rules.
 - [ ] Draft entry lives in `mutableStateOf` rather than `SavedStateHandle`: survives rotation
       (verified) but not process death.
+- [ ] Diary CSV import. The export cannot be read back, so it is a copy for analysis rather than a
+      backup - and since Android backup is off by design it is the only copy of the meals.
+      **Postponed by decision, 05.11.2026: a feature, not an audit finding, and not started.** Scope
+      for when it is picked up: merge on the recorded values so a repeated import cannot duplicate
+      meals, fresh ids (exported ones would collide), keep `model_suggested_u` /
+      `model_predicted_4h_mg_dl`, skip and report malformed rows, SAF picker like the CGM import,
+      round-trip JVM tests over `DiaryCsv.render` output. Wholesale replace deliberately excluded.
+      The model row and the per-suggestion `DoseSlopes` are not in the file, so a restore ends with a
+      CGM import and a retrain, and the model-vs-user curves restart from the restore point.
 - [ ] No `androidTest` source set on `:app`: the Compose flows, the Room DAOs and the import path
       are untested; a real migration test would need one.
 - [ ] `DoseSweep` re-declares the bolus feature index as the literal 2 instead of reusing
