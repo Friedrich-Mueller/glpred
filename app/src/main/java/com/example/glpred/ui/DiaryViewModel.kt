@@ -223,6 +223,20 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var tempBasis by mutableStateOf("")
         private set
+
+    /**
+     * Written by the entry screen's pickers on every pick, so the choice survives a rotation and the
+     * trip to the review screen. Read back when the form is composed, which is what stops the date
+     * and time from silently reverting to "now" when the entry is edited (AUDIT.md M1).
+     */
+    fun setDraftDate(formatted: String) {
+        tempDate = formatted
+    }
+
+    fun setDraftTime(formatted: String) {
+        tempTime = formatted
+    }
+
     var tempTimestamp by mutableStateOf(System.currentTimeMillis())
         private set
 
@@ -363,10 +377,15 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Forgets the saved entry. The enter screen seeds its fields from these values, so without this
-     * the next meal starts pre-filled with the last one's glucose, carbs and basis - typing into a
-     * pre-filled form is how 120111 mg/dL got entered and stored on 03-11-2026.
+     * Forgets the draft. The enter screen seeds its fields from these values, so without this the next
+     * meal starts pre-filled with the last one's glucose, carbs and basis - typing into a pre-filled
+     * form is how 120111 mg/dL got entered and stored on 03-11-2026.
+     *
+     * Called after a successful save, and through [discardDraft] when the form is left without
+     * saving: an abandoned draft used to survive and pre-fill the next entry (AUDIT.md M8).
      */
+    fun discardDraft() = clearDraft()
+
     private fun clearDraft() {
         tempDate = ""
         tempTime = ""

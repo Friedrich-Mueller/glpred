@@ -3,6 +3,7 @@ package com.example.glpred.ui
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,26 +49,37 @@ fun EnterDataScreen(
 ) {
     val context = LocalContext.current
 
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var selectedTime by remember { mutableStateOf(LocalTime.now()) }
+    // Seeded from the draft in the ViewModel, not from the clock: the review screen already shows
+    // this meal's own date and time, and coming back to edit it used to replace both with "now".
+    var selectedDate by remember {
+        mutableStateOf(viewModel.tempDate.toDraftDateOrNull() ?: LocalDate.now())
+    }
+    var selectedTime by remember {
+        mutableStateOf(viewModel.tempTime.toDraftTimeOrNull() ?: LocalTime.now())
+    }
 
     var glucoseStr by remember { mutableStateOf(viewModel.tempGlucose) }
     var carbsStr by remember { mutableStateOf(viewModel.tempCarbs) }
     var basisStr by remember { mutableStateOf(viewModel.tempBasis) }
 
-    val formattedDate = remember(selectedDate) {
-        selectedDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+    val formattedDate = remember(selectedDate) { selectedDate.format(DRAFT_DATE) }
+    val formattedTime = remember(selectedTime) { selectedTime.format(DRAFT_TIME) }
+
+    // Leaving without saving must not pre-fill the next meal: the three text fields are seeded from
+    // the draft, so an abandoned entry used to leak its values into the next one. System back is
+    // routed through the same call, or only the toolbar arrow would clear it.
+    val discardAndLeave = {
+        viewModel.discardDraft()
+        onNavigateBack()
     }
-    val formattedTime = remember(selectedTime) {
-        selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))
-    }
+    BackHandler(onBack = discardAndLeave)
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Enter Data") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = discardAndLeave) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
@@ -103,7 +115,10 @@ fun EnterDataScreen(
                         DatePickerDialog(
                             context,
                             { _, year, month, dayOfMonth ->
-                                selectedDate = LocalDate.of(year, month + 1, dayOfMonth)
+                                val picked = LocalDate.of(year, month + 1, dayOfMonth)
+                                selectedDate = picked
+                                // Written back on pick, so a rotation keeps the choice too.
+                                viewModel.setDraftDate(picked.format(DRAFT_DATE))
                             },
                             selectedDate.year,
                             selectedDate.monthValue - 1,
@@ -131,7 +146,9 @@ fun EnterDataScreen(
                         TimePickerDialog(
                             context,
                             { _, hourOfDay, minute ->
-                                selectedTime = LocalTime.of(hourOfDay, minute)
+                                val picked = LocalTime.of(hourOfDay, minute)
+                                selectedTime = picked
+                                viewModel.setDraftTime(picked.format(DRAFT_TIME))
                             },
                             selectedTime.hour,
                             selectedTime.minute,
@@ -194,3 +211,14 @@ fun EnterDataScreen(
         }
     }
 }
+
+/** The draft's formats: `DiaryViewModel` stores these strings and the review screen shows them. */
+private val DRAFT_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+private val DRAFT_TIME = DateTimeFormatter.ofPattern("HH:mm")
+
+/** The stored draft value, or null when the field is still blank (a fresh entry) or unreadable. */
+private fun String.toDraftDateOrNull(): LocalDate? =
+    runCatching { LocalDate.parse(this, DRAFT_DATE) }.getOrNull()
+
+private fun String.toDraftTimeOrNull(): LocalTime? =
+    runCatching { LocalTime.parse(this, DRAFT_TIME) }.getOrNull()
