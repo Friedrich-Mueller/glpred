@@ -202,6 +202,9 @@ fun ConfirmDataScreen(
                 value = viewModel.actualBolusStr,
                 onValueChange = { viewModel.setActualBolus(it) },
                 label = { Text("Bolus injected (units)") },
+                supportingText = {
+                    Text("${formatUnits(EntryLimits.BOLUS.start)}-${formatUnits(EntryLimits.BOLUS.endInclusive)} u")
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )

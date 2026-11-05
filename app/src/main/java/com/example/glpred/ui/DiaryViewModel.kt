@@ -33,6 +33,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -121,20 +122,29 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
      */
     val history: StateFlow<List<HistoryRow>> = allEntries
         .map { entries ->
-            if (entries.isEmpty()) {
-                isHistoryLoading = false
+            try {
+                if (entries.isEmpty()) {
+                    emptyList()
+                } else {
+                    withContext(Dispatchers.IO) {
+                        val model = database.trainedModelDao().get()?.toRidgeModel()
+                        MealHistory.build(
+                            entries = entries,
+                            readings = cgmDao.getAllReadings(),
+                            predict4h = model?.let { trained ->
+                                { sample: TrainingSample -> trained.predict4h(sample.features()) }
+                            }
+                        )
+                    }
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                // Keep the flow collecting and the spinner down. Residual: the screen still cannot
+                // tell "no meals" from "the read failed", because it has no error state (AUDIT.md M4).
                 emptyList()
-            } else {
-                withContext(Dispatchers.IO) {
-                    val model = database.trainedModelDao().get()?.toRidgeModel()
-                    MealHistory.build(
-                        entries = entries,
-                        readings = cgmDao.getAllReadings(),
-                        predict4h = model?.let { trained ->
-                            { sample: TrainingSample -> trained.predict4h(sample.features()) }
-                        }
-                    )
-                }.also { isHistoryLoading = false }
+            } finally {
+                isHistoryLoading = false
             }
         }
         .stateIn(
@@ -157,24 +167,27 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         if (isAnalysisLoading) return
         isAnalysisLoading = true
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val entries = diaryDao.getAllEntriesList()
-                if (entries.isEmpty()) {
-                    ModelVsHuman.build(emptyList(), emptyList())
-                } else {
-                    val series = CgmSeries.from(cgmDao.getAllReadings())
-                    val samples = TrainingSamples.build(entries, series)
-                    ModelVsHuman.build(
-                        entries = entries,
-                        samples = samples,
-                        validationErrorMgDl = LeaveOneOut.rmse4h(samples)?.rmse,
-                        modelCurve = modelCurveByHour(entries),
-                        slopeFor = { timestamp -> DoseSlopes.load(getApplication(), timestamp) }
-                    )
+            try {
+                analysis = withContext(Dispatchers.IO) {
+                    val entries = diaryDao.getAllEntriesList()
+                    if (entries.isEmpty()) {
+                        ModelVsHuman.build(emptyList(), emptyList())
+                    } else {
+                        val series = CgmSeries.from(cgmDao.getAllReadings())
+                        val samples = TrainingSamples.build(entries, series)
+                        ModelVsHuman.build(
+                            entries = entries,
+                            samples = samples,
+                            validationErrorMgDl = LeaveOneOut.rmse4h(samples)?.rmse,
+                            modelCurve = modelCurveByHour(entries),
+                            slopeFor = { timestamp -> DoseSlopes.load(getApplication(), timestamp) }
+                        )
+                    }
                 }
+            } finally {
+                // Reset on every path; a throw used to leave the screen loading for ever (AUDIT.md M4).
+                isAnalysisLoading = false
             }
-            analysis = result
-            isAnalysisLoading = false
         }
     }
 
@@ -271,21 +284,14 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
             onError("Please fill in blood glucose, carbs and basis.")
             return
         }
-        val glucose = glucoseStr.toIntOrNull()
-        if (glucose == null || glucose <= 0) {
-            onError("Blood glucose must be a whole number in mg/dL.")
-            return
-        }
-        val carbs = carbsStr.replace(',', '.').toFloatOrNull()
-        if (carbs == null || carbs < 0f) {
-            onError("Carbohydrates must be a number.")
-            return
-        }
-        val basis = basisStr.toIntOrNull()
-        if (basis == null || basis < 0) {
-            onError("Basis must be a whole number of units.")
-            return
-        }
+        // The same ranges the History editor enforces: a value one screen rejects must not be
+        // accepted on the other, and both used to accept anything that merely parsed (AUDIT.md M3).
+        val glucose = EntryLimits.glucose(glucoseStr)
+            .getOrElse { onError(it.message.orEmpty()); return }
+        val carbs = EntryLimits.carbs(carbsStr)
+            .getOrElse { onError(it.message.orEmpty()); return }.toFloat()
+        val basis = EntryLimits.basis(basisStr)
+            .getOrElse { onError(it.message.orEmpty()); return }
 
         tempDate = date
         tempTime = time
@@ -304,11 +310,21 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 carbs = carbs,
                 basis = basis
             )
-            val base = runCatching { doseAdvisor.recommend(input) }
-                .getOrElse { DoseRecommendation.Unavailable("Prediction failed: ${it.message}") }
-            recommendation = withCoverageWarning(base, timestamp)
-            isPredicting = false
-            onReady()
+            try {
+                val base = runCatching { doseAdvisor.recommend(input) }
+                    .getOrElse { DoseRecommendation.Unavailable("Prediction failed: ${it.message}") }
+                // A failure in the guard costs the warning, not the prediction itself.
+                recommendation = runCatching { withCoverageWarning(base, timestamp) }.getOrElse { base }
+                onReady()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                // Without this the form kept isPredicting = true for ever: the Review button did
+                // nothing and said nothing (AUDIT.md M4).
+                onError("The prediction could not be shown: ${error.message ?: error::class.simpleName}")
+            } finally {
+                isPredicting = false
+            }
         }
     }
 
@@ -337,15 +353,12 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Validates the injected amount before moving on to the final confirmation. */
     fun validateActualBolus(onValid: () -> Unit, onError: (String) -> Unit) {
-        val parsed = actualBolusStr.replace(',', '.').toDoubleOrNull()
-        if (parsed == null || parsed < 0.0) {
+        if (actualBolusStr.isBlank()) {
             onError("Enter the insulin you injected, in units (e.g. 6 or 6.5).")
             return
         }
-        if (parsed > 100.0) {
-            onError("That looks too high - please check the value.")
-            return
-        }
+        // One bound, shared with the sweep ceiling, instead of the old "anything up to 100" check.
+        EntryLimits.bolus(actualBolusStr).getOrElse { onError(it.message.orEmpty()); return }
         onValid()
     }
 
@@ -494,14 +507,11 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 .toEpochMilli()
         }.getOrNull() ?: return "Date and time must look like 01.11.2026 and 18:20."
 
-        val glucose = glucoseStr.trim().toIntOrNull()
-        if (glucose == null || glucose <= 0) return "Blood glucose must be a whole number above 0."
-        val carbs = carbsStr.replace(',', '.').trim().toDoubleOrNull()
-        if (carbs == null || carbs < 0.0) return "Carb units must be a number, 0 or more."
-        val bolus = bolusStr.replace(',', '.').trim().toDoubleOrNull()
-        if (bolus == null || bolus < 0.0) return "Injected units must be a number, 0 or more."
-        val basis = basisStr.trim().toIntOrNull()
-        if (basis == null || basis < 0) return "Basis units must be a whole number, 0 or more."
+        // The ranges live in EntryLimits so this door and the entry form cannot disagree.
+        val glucose = EntryLimits.glucose(glucoseStr).getOrElse { return it.message ?: "Invalid blood glucose." }
+        val carbs = EntryLimits.carbs(carbsStr).getOrElse { return it.message ?: "Invalid carb units." }
+        val bolus = EntryLimits.bolus(bolusStr).getOrElse { return it.message ?: "Invalid injected units." }
+        val basis = EntryLimits.basis(basisStr).getOrElse { return it.message ?: "Invalid basis." }
 
         val mealChanged = timestamp != original.timestamp || glucose != original.glucose ||
             carbs.toFloat() != original.carbs || basis != original.basis
@@ -551,17 +561,28 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         if (isTraining) return
         isTraining = true
         viewModelScope.launch {
-            val result = trainingRunner.train()
-            trainingResult = result
+            try {
+                val result = trainingRunner.train()
+                trainingResult = result
             // Coverage is only known at fit time and is not part of the model row, so it is kept
             // beside the model in preferences for the out-of-distribution guard.
-            (result as? TrainingResult.Trained)?.let { trained ->
-                PredictionCoverage.save(getApplication(), trained.coveredHours)
-                // The fit describes the diary as it is now, so this is the version it is valid for.
-                DataVersion.markTrained(getApplication())
-                trainedVersion = dataVersion
+                (result as? TrainingResult.Trained)?.let { trained ->
+                    PredictionCoverage.save(getApplication(), trained.coveredHours)
+                    // The fit describes the diary as it is now, so this is the version it is valid for.
+                    DataVersion.markTrained(getApplication())
+                    trainedVersion = dataVersion
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                // Training used to leave isTraining = true for ever on a throw, and the retrain button
+                // then only ever answered "Training is already running" (AUDIT.md M4).
+                trainingResult = TrainingResult.Failed(
+                    error.message ?: error::class.simpleName ?: "unknown error"
+                )
+            } finally {
+                isTraining = false
             }
-            isTraining = false
         }
     }
 }

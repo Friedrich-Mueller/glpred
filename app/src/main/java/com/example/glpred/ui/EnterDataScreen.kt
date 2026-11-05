@@ -161,6 +161,7 @@ fun EnterDataScreen(
                 value = glucoseStr,
                 onValueChange = { glucoseStr = it },
                 label = { Text("Blood Glucose (mg/dL)") },
+                supportingText = { Text("${EntryLimits.GLUCOSE.start}-${EntryLimits.GLUCOSE.endInclusive} mg/dL") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -169,6 +170,7 @@ fun EnterDataScreen(
                 value = carbsStr,
                 onValueChange = { carbsStr = it },
                 label = { Text("Carbohydrates (units)") },
+                supportingText = { Text("${formatUnits(EntryLimits.CARBS.start)}-${formatUnits(EntryLimits.CARBS.endInclusive)} CU") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -177,6 +179,7 @@ fun EnterDataScreen(
                 value = basisStr,
                 onValueChange = { basisStr = it },
                 label = { Text("Basis (Long-Acting Insulin)") },
+                supportingText = { Text("${EntryLimits.BASIS.start}-${EntryLimits.BASIS.endInclusive} u") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )

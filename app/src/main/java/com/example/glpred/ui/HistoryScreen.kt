@@ -307,10 +307,28 @@ private fun HistoryCard(
                 ) {
                     EditField("Date (dd.MM.yyyy)", editDate) { editDate = it }
                     EditField("Time (HH:mm)", editTime) { editTime = it }
-                    EditField("Blood glucose (mg/dL)", editGlucose, KeyboardType.Number) { editGlucose = it }
-                    EditField("Carb unit/s", editCarbs, KeyboardType.Decimal) { editCarbs = it }
-                    EditField("Injected bolus (unit/s)", editBolus, KeyboardType.Decimal) { editBolus = it }
-                    EditField("Basis (unit/s)", editBasis, KeyboardType.Number) { editBasis = it }
+                    // The ranges are the same object the validators read, so a label cannot
+                    // promise a value the editor rejects.
+                    EditField(
+                        "Blood glucose (mg/dL), ${EntryLimits.GLUCOSE.start}-${EntryLimits.GLUCOSE.endInclusive}",
+                        editGlucose,
+                        KeyboardType.Number
+                    ) { editGlucose = it }
+                    EditField(
+                        "Carb unit/s, ${formatUnits(EntryLimits.CARBS.start)}-${formatUnits(EntryLimits.CARBS.endInclusive)}",
+                        editCarbs,
+                        KeyboardType.Decimal
+                    ) { editCarbs = it }
+                    EditField(
+                        "Injected bolus, ${formatUnits(EntryLimits.BOLUS.start)}-${formatUnits(EntryLimits.BOLUS.endInclusive)} unit/s",
+                        editBolus,
+                        KeyboardType.Decimal
+                    ) { editBolus = it }
+                    EditField(
+                        "Basis, ${EntryLimits.BASIS.start}-${EntryLimits.BASIS.endInclusive} unit/s",
+                        editBasis,
+                        KeyboardType.Number
+                    ) { editBasis = it }
                     editError?.let { message ->
                         Text(
                             text = message,
