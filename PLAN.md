@@ -634,6 +634,12 @@ The audit committed nothing; the fixes below are the only source changes it caus
   keeps its actions pinned by moving the cards into a `weight(1f)` scrolling column. Verified on a
   forced 1080x1600 viewport: `Review Entry` was unreachable until the form scrolled, and `Continue`
   kept identical bounds across a content swipe. Lint back to 0 errors / 29 warnings.
-- Still open from the audit: H1 (release config), H2 (destructive migration), M6, L1-L4,
+- **M6 and L2 fixed, same day.** `isSaving` is set before the insert coroutine starts, so a
+  double tap cannot insert two meals, and the final button disables while the write is in flight;
+  a failed insert reports a Toast instead of nothing. `updateEntry` reports its outcome through an
+  `onResult` callback called only after the DAO returns, and the History dialog stays open with a
+  disabled Save until then. Neither failure branch was triggered - both need a real write or a
+  database error - so both are verified by construction.
+- Still open from the audit: H1 (release config), H2 (destructive migration), L1-L4,
   and every runtime path never exercised - CSV import, retrain, History edit/delete, CSV export, the
   Analysis screen, rotation, process death, small-screen layout. No `androidTest` source set exists.

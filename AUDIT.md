@@ -238,6 +238,13 @@ real repeat meal.
 *Fix:* a save-once flag, or disable the button while a save is in flight. One line, and it also covers a
 slow insert on a low-end device.
 
+**Status 05.11.2026 - FIXED, not reproduced.** `isSaving` is set synchronously *before* the
+insert's coroutine starts, so a second tap in the same frame returns immediately instead of
+queueing a second row; the button additionally disables and reads "Saving entry..." while the
+write is in flight, and a failed insert now surfaces as a Toast with the draft kept. The double
+insert itself was never observed - triggering it means a real save, which writes to the diary -
+so this fix is verified by construction, not by measurement.
+
 ### M7 — The review screen is not scrollable; its buttons sit at the screen edge — INSPECTION
 
 `ui/ConfirmDataScreen.kt:62-233` is a `fillMaxSize()` `Column` with **no** `verticalScroll`. Measured on
@@ -325,6 +332,13 @@ milliseconds), but it is debug output in a shipping build and disappears only on
 `DiaryViewModel.updateEntry` (`:459-507`) validates synchronously, then launches the write and **always**
 returns `null` afterwards (`:506`). A failing `@Update` (disk full, cancelled scope) is invisible and the
 row silently keeps its old values. Low impact today, but the UI states a fact it did not check.
+
+**Status 05.11.2026 - FIXED.** `updateEntry` now takes an `onResult: (String?) -> Unit` and calls
+it exactly once: with the validation reason, or with `null` only after `diaryDao.updateEntry` has
+returned. The dialog holds itself open with a disabled "Saving..." Save button until that
+callback arrives, and re-enables it with the message when the write fails. Verified on device that
+the dialog opens with the range labels, Save enabled, and Cancel dismisses it without writing; the
+failure branch needs a database error to observe and was not triggered.
 
 ### L3 — No launcher icon — INSPECTION
 
@@ -421,8 +435,8 @@ Blockers first. Each item is a separate approval.
    restore-time accuracy that closes M9.
 7. ~~**M5** — `allowBackup="false"`, or backup rules excluding both databases.~~ **DONE 05.11.2026**
 8. ~~**M7** — scrollable content or a fixed bottom action bar on the three form screens.~~ **DONE 05.11.2026**
-9. **M6** — save-once guard. **L2** — return a result from `updateEntry` and report a failed
-   write.
+9. ~~**M6** — save-once guard. **L2** — return a result from `updateEntry` and report a
+   failed write.~~ **DONE 05.11.2026**
 10. **L1** and **L3** — release logging and a launcher icon, as part of H1.
 
 After items 1-3, re-run `assembleDebug`, `testDebugUnitTest`, `lintDebug` and `assembleRelease`, and
