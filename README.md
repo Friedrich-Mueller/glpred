@@ -111,8 +111,7 @@ the model's predictions become more accurate than the user's would have been.
 </table>
 
 > Development build on a phone-sized emulator, with synthetic test meals rather than anyone's real
-> data. The model has five samples, so its error is large, no swept dose reaches the band, and an
-> extrapolation warning is visible.
+> data.
 
 # Data and ML
 
