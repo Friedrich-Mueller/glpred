@@ -117,7 +117,11 @@ class TrainingRunner(
             looRmse4h = loo4h?.rmse,
             looFolds4h = loo4h?.folds ?: 0,
             looRmse3h = loo3h?.rmse,
-            coveredHours = PredictionCoverage.hoursFrom(samples)
+            // The hours that matter are the hours the fit actually saw. An entry whose 4 h label
+            // has not resolved yet is not a training row, and counting its hour marked a time of
+            // day as supported where the model had no data - silencing the extrapolation warning
+            // exactly where IDEA.md:15 asks for one (AUDIT.md M2).
+            coveredHours = PredictionCoverage.hoursFrom(labelled)
         )
     }
 }

@@ -29,7 +29,7 @@ the audit, and no diary entry was saved. The only write is this document.
 | Release build | `:app:assembleRelease` | `BUILD SUCCESSFUL` → **`app-release-unsigned.apk`**, 6.97 MB, **zero signature entries in `META-INF`** |
 | Lint | `:app:lintDebug` | **0 errors, 29 warnings** |
 | Lint (release gate) | `:app:lintVitalRelease` | `BUILD SUCCESSFUL` |
-| Unit tests | `:app:testDebugUnitTest` | **10 suites, 46 tests, 0 failures, 0 errors, 0 skipped** |
+| Unit tests | `:app:testDebugUnitTest` | **10 suites / 46 tests** at audit time, **11 suites / 48 tests** after the M2 regression test - 0 failures throughout |
 | Not run | instrumentation tests | none exist in the project |
 
 Tests, read from `app/build/test-results/testDebugUnitTest/*.xml` (not inferred from the task summary):
@@ -155,6 +155,12 @@ rows — the one situation the guard exists to flag. The error points in the uns
 too permissive) and is invisible: the warning simply does not appear.
 
 *Fix:* pass the labelled list; add a test asserting that an unlabelled meal's hour is not "covered".
+
+**Status 05.11.2026 - FIXED AND VERIFIED.** `TrainingRunner` now passes `labelled` to
+`PredictionCoverage.hoursFrom` (`prediction/TrainingRunner.kt:120`). Pinned by
+`TrainingRunnerCoverageTest` (2 tests, fake DAOs, no Room needed): a 03:15 meal with no resolved label
+leaves `coveredHours == {12, 13}`, and a second case gives the same meal a label and expects hour 3 to
+appear - so the first assertion cannot pass for a trivial reason. Suite green: 11 suites, 48 tests.
 
 *Why it outranks the other one-line fixes:* `IDEA.md:15` names this guard as a product requirement —
 “There might even have to be safety anchors in place, for unseen meal data which falls outside of the
@@ -342,7 +348,9 @@ Blockers first. Each item is a separate approval.
    migration.
 3. **H1** — release build type: minify plus keep-rules plus signing; then `assembleRelease` and
    `lintVitalRelease`.
-4. **M2** — pass the labelled samples to `PredictionCoverage.hoursFrom`; test the `IDEA.md:15`
+4. ~~**M2** — pass the labelled samples to `PredictionCoverage.hoursFrom`; test the `IDEA.md:15`
+   requirement (an unlabelled meal does not create coverage).~~ **DONE 05.11.2026** — fixed and
+   pinned by `TrainingRunnerCoverageTest`; suite now 48 tests.
 5. **M3** — one shared bounds validator for the entry form and the History editor.
 6. **M4** — `try/finally` around the in-flight flags in `validateAndStartReview`,
    `refreshAnalysis` and the history mapping.

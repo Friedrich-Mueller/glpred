@@ -30,7 +30,8 @@ worse than none.
 | Settings (target band, horizon) | deliberately dropped for v1: the band 90-140 and the 4 h primary horizon are settled |
 | Entry form starts empty after a save | done (03-11-2026): `DiaryViewModel.clearDraft()` |
 | Diary export to CSV (the diary has no other source) | done (03-11-2026): `DiaryCsv`, History top bar, SAF create-document |
-| Unit tests | 46 in `app/src/test`, all passing |
+| Unit tests | 48 in `app/src/test`, all passing (46 before the audit + 2 from the M2 regression) |
+| Release-readiness audit (`AUDIT.md`) | done 05-11-2026: 2 high, 8 medium, 4 low; M1 + M8 fixed, M2 corrected |
 
 ## The constraint that shapes the whole design
 
@@ -569,3 +570,44 @@ and none of it says anything about real meals or real physiology.
 Still absent from the metric and needed by slice 4: win/tie counts for M2 (per-meal ratio errors are
 exposed, no aggregate), and a parity test between `DoseBenchmark.lossOf` and
 `CounterfactualScore.errorOf`, whose constants are duplicated until slice 4 deletes the old class.
+
+## 05-11-2026 - Release-readiness audit; two reproduced defects fixed
+
+Artifacts: `AUDIT.md` (findings, the evidence class of each, and the remediation order);
+`./gradlew --offline :app:assembleRelease :app:lintDebug :app:lintVitalRelease :app:testDebugUnitTest`;
+the UI driven on `emulator-5554` (Android 16, API 37) through `adb shell input` and `uiautomator dump`.
+The audit committed nothing; the fixes below are the only source changes it caused.
+
+- **Measured here for the first time:** 46 unit tests green across 10 suites (counted from
+  `app/build/test-results/testDebugUnitTest/*.xml`, not from the task summary); `lintDebug` 0 errors /
+  29 warnings (17 GradleDependency, 8 UseTomlInstead, 3 AndroidGradlePluginVersion, 1
+  MissingApplicationIcon); `assembleRelease` writing `app-release-unsigned.apk` with **no** `META-INF`
+  signature. The release blocker is now confirmed by an artifact rather than inferred from the build file.
+- **A green build is not proof here.** Immediately after two source edits `:app:compileDebugKotlin`
+  reported UP-TO-DATE and the APK did not contain the change - Gradle's file watching had missed the
+  write. `-Dorg.gradle.vfs.watch=false --rerun-tasks` produced a real compile (4 s -> 14 s) and the new
+  symbols were then found in `classes.dex`. Check builds against the artifact, not the task summary.
+- **M1, reproduced then fixed.** The entry screen's date and time were `remember { now() }`, so
+  `Review -> back` returned today's clock: picking 01.11 and coming back showed 05.11 / 15:06 while
+  glucose, carbs and basis survived. That value becomes the row's timestamp, which decides the 4 h label
+  and the meal's position in the interaction features. The pickers now seed from `tempDate` /
+  `tempTime` and write back on every pick, so the review round trip and a rotation both keep it.
+- **M8, reproduced then fixed.** With 120 / 4 / 10 typed, backing out to the main menu and opening New
+  Entry showed the same values again - `clearDraft()` ran only after a successful save. `discardDraft()`
+  is now called from one exit path covering the toolbar arrow **and** `BackHandler`; otherwise the system
+  back gesture, the usual one, would still leak the draft.
+- **Time precision corrected.** The model's phase is `minuteOfDay = hour * 60 + minute`, so the carb
+  factor and the insulin-sensitivity curves are continuous over the day, not per-hour steps. A
+  20-minute drift is 5 degrees of the cycle, applied to all four interaction columns. Do not "simplify"
+  `featuresOf` to an hourly integer. Two things are deliberately coarser and neither is the model:
+  `PredictionCoverage` reasons in whole hours with a 60-minute radius, and the chart plots 24 hourly
+  samples for the screen.
+- **M2 corrected.** `TrainingRunner` passed `samples` to `PredictionCoverage.hoursFrom`, so a meal whose
+  4 h label had not resolved still marked its hour as supported, and the extrapolation warning could stay
+  silent exactly where `IDEA.md:15` asks for a safety anchor. It is now fed `labelled`. Pinned by
+  `TrainingRunnerCoverageTest` through fake DAOs - a 03:15 meal with no label expects
+  `coveredHours == {12, 13}`, and a second case labels the same meal and expects hour 3 to appear, so the
+  first assertion cannot pass for a trivial reason.
+- Still open from the audit: H1 (release config), H2 (destructive migration), M3, M4, M5, M6, M7, L1-L4,
+  and every runtime path never exercised - CSV import, retrain, History edit/delete, CSV export, the
+  Analysis screen, rotation, process death, small-screen layout. No `androidTest` source set exists.
