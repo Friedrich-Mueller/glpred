@@ -369,6 +369,22 @@ stored one. Both numbers are already computed for the span card and the model st
 *Not a defect in the import itself:* parsing, the batch insert, the span card and the auto-retrain all
 behaved as designed. This is a reporting gap.
 
+**Status 05.11.2026 - FIXED AND VERIFIED.** `FetchDataViewModel` now reads `storedSpan()` *before* the
+table is replaced and keeps the old end when it is later than the new one
+(`replacedLongerSpanEndMs`); `FetchDataScreen` renders it under the success line. The realistic trigger
+is the one the author named: picking an outdated export by mistake when a current one was meant.
+
+Verified on emulator-5554 by building such a file from the repository export - header plus the first
+200,000 rows, so it ends before the stored span:
+
+- import it -> `Successfully loaded 199999 raw readings in 1.2 seconds.` followed by
+  `This file ends earlier than the readings it replaced (20.10.2026 12:10). Meals dated after the new
+  end cannot be labelled until a newer export is imported.`,
+- re-import the full 280,142-row file -> no warning, span back to `26.09.2025 23:53` - `20.10.2026 12:10`.
+
+The warning costs one extra query per import and cannot fire when the file is at least as new, which is
+the normal cumulative case.
+
 ### M11 — Rotation discards the entry form's typed values — **REPRODUCED**
 
 `ui/EnterDataScreen.kt:63-65`
@@ -480,7 +496,7 @@ What is still genuinely unverified:
 | Area | Why | State |
 |---|---|---|
 | Instrumented tests | None exist in the project | **open** - the Compose flows, both DAOs, the import and the SAF export have no automated coverage |
-| mmol/L LibreView exports | No such file available | **open** - `CgmCsvLoader` matches on `contains("historic glucose")`, which a `mmol/L` header also satisfies, so a `7.2` reading could be parsed as 7.2 mg/dL. Unproven, and the worst outcome if true |
+| mmol/L LibreView exports | No such file available | **accepted by decision 05.11.2026** - the app has one user, whose LibreView account exports mg/dL in English; guarding every conceivable export variant was judged out of scope. `README.md` states the loader reads the English export only |
 | Large system font / small viewport | Only two sizes were used | partial: one short viewport (1080x1600) was exercised for M7 |
 | H2's loud-failure path | Testing needs a v4 database, which the v3 build could then not reopen | **unverified by design** - the point is to fail loudly, not to be walked into |
 | M6 double-tap race | Triggering it writes a real duplicate | verified by construction only |
@@ -514,9 +530,10 @@ Blockers first. Each item is a separate approval.
 9. ~~**M6** — save-once guard. **L2** — return a result from `updateEntry` and report a
    failed write.~~ **DONE 05.11.2026**
 10. **L1** and **L3** — release logging and a launcher icon, as part of H1.
-11. **M11** — `rememberSaveable` for the three entry strings.
-12. **M10** — report the labelled-meal count before -> after an import, and warn when the incoming span
-    is older than the stored one.
+11. ~~**M11** — `rememberSaveable` for the three entry strings.~~ **DONE 05.11.2026** - 150 survived
+    landscape and back on the device.
+12. ~~**M10** — warn when the incoming span is older than the stored one.~~ **DONE 05.11.2026** -
+    fixed and verified with a synthetic 200,000-row export.
 
 After items 1-3, re-run `assembleDebug`, `testDebugUnitTest`, `lintDebug` and `assembleRelease`, and
 repeat the M1 reproduction on the emulator. After items 4-9, add the missing `androidTest` coverage for
