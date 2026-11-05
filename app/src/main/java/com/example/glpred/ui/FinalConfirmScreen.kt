@@ -109,12 +109,18 @@ fun FinalConfirmScreen(
                         onSuccess = {
                             Toast.makeText(context, "Entry saved", Toast.LENGTH_SHORT).show()
                             onSaveSuccess()
+                        },
+                        onError = { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         }
                     )
                 },
+                // The ViewModel drops a re-entrant call as well; this only stops the second tap from
+                // reaching it, and shows that the save is in flight.
+                enabled = !viewModel.isSaving,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Confirm & Save Entry")
+                Text(if (viewModel.isSaving) "Saving entry..." else "Confirm & Save Entry")
             }
 
             OutlinedButton(

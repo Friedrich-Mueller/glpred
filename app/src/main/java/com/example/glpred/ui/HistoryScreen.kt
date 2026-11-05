@@ -143,9 +143,9 @@ fun HistoryScreen(
                         items(rows, key = { it.entry.id }) { row ->
                             HistoryCard(
                                 row = row,
-                                onSave = { date, time, glucose, carbs, bolus, basis ->
+                                onSave = { date, time, glucose, carbs, bolus, basis, onResult ->
                                     viewModel.updateEntry(
-                                        row.entry, date, time, glucose, carbs, bolus, basis
+                                        row.entry, date, time, glucose, carbs, bolus, basis, onResult
                                     )
                                 },
                                 onDelete = { viewModel.deleteEntry(row.entry.id) }
@@ -161,8 +161,8 @@ fun HistoryScreen(
 @Composable
 private fun HistoryCard(
     row: HistoryRow,
-    /** Returns null when the edit was accepted, or the reason it was not. */
-    onSave: (String, String, String, String, String, String) -> String?,
+    /** Calls back with null once the row is written, or the reason it was not. */
+    onSave: (String, String, String, String, String, String, (String?) -> Unit) -> Unit,
     onDelete: () -> Unit
 ) {
     val entry = row.entry
@@ -297,8 +297,11 @@ private fun HistoryCard(
     // Correcting an entry: any of the six recorded values, not just the dose - a meal logged at the
     // wrong time, or with the carbs misread off the packet, is just as common as a wrong dose.
     if (editing) {
+        // Held until the write comes back: closing on the click made a failed update look like a
+        // successful one (AUDIT.md L2).
+        var saving by remember(entry.id) { mutableStateOf(false) }
         AlertDialog(
-            onDismissRequest = { editing = false },
+            onDismissRequest = { if (!saving) editing = false },
             title = { Text("Edit entry") },
             text = {
                 Column(
@@ -346,19 +349,21 @@ private fun HistoryCard(
             },
             confirmButton = {
                 TextButton(
+                    enabled = !saving,
                     onClick = {
-                        val error = onSave(
-                            editDate, editTime, editGlucose, editCarbs, editBolus, editBasis
-                        )
-                        if (error == null) {
-                            editing = false
-                        } else {
-                            editError = error
+                        if (saving) return@TextButton
+                        saving = true
+                        editError = null
+                        onSave(editDate, editTime, editGlucose, editCarbs, editBolus, editBasis) { error ->
+                            saving = false
+                            if (error == null) editing = false else editError = error
                         }
                     }
-                ) { Text("Save") }
+                ) { Text(if (saving) "Saving..." else "Save") }
             },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(enabled = !saving, onClick = { editing = false }) { Text("Cancel") }
+            }
         )
     }
 

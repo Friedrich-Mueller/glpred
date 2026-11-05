@@ -294,6 +294,14 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     var isPredicting by mutableStateOf(false)
         private set
 
+    /**
+     * True while an entry is being written. The insert is a coroutine, so two taps in the same frame
+     * both reach [confirmAndSaveEntry] before anything recomposes: the guard has to be set
+     * synchronously, before the launch, or it does not guard anything (AUDIT.md M6).
+     */
+    var isSaving by mutableStateOf(false)
+        private set
+
     /** Null until the advisor has answered for the current draft. */
     var recommendation by mutableStateOf<DoseRecommendation?>(null)
         private set
@@ -396,30 +404,48 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         onValid()
     }
 
-    /** Saves the entry with the injected dose plus, when there was one, the suggestion it beat. */
-    fun confirmAndSaveEntry(onSuccess: () -> Unit) {
+    /**
+     * Saves the entry with the injected dose plus, when there was one, the suggestion it beat.
+     *
+     * Re-entrant calls are dropped rather than queued: a double tap used to insert two identical
+     * meals, each with the same 4 h label, and nothing afterwards could tell them apart from a real
+     * repeat meal (AUDIT.md M6).
+     */
+    fun confirmAndSaveEntry(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (isSaving) return
+        isSaving = true
+
         val bolus = actualBolusStr.replace(',', '.').toDoubleOrNull() ?: 0.0
         val suggestion = recommendation as? DoseRecommendation.Available
 
         viewModelScope.launch {
-            diaryDao.insertEntry(
-                DiaryEntity(
-                    timestamp = tempTimestamp,
-                    glucose = tempGlucose.toIntOrNull() ?: 0,
-                    carbs = tempCarbs.replace(',', '.').toFloatOrNull() ?: 0f,
-                    bolus = bolus,
-                    basis = tempBasis.toIntOrNull() ?: 0,
-                    suggestedBolus = suggestion?.suggestedUnits,
-                    predictedGlucose = suggestion?.predictedGlucoseMgDl
+            try {
+                diaryDao.insertEntry(
+                    DiaryEntity(
+                        timestamp = tempTimestamp,
+                        glucose = tempGlucose.toIntOrNull() ?: 0,
+                        carbs = tempCarbs.replace(',', '.').toFloatOrNull() ?: 0f,
+                        bolus = bolus,
+                        basis = tempBasis.toIntOrNull() ?: 0,
+                        suggestedBolus = suggestion?.suggestedUnits,
+                        predictedGlucose = suggestion?.predictedGlucoseMgDl
+                    )
                 )
-            )
-            // Navigate first, then forget: the final-confirm card is still composed while this
-            // runs, so emptying the draft before the destination changes would flash blank values.
-            suggestion?.slopeMgDlPerUnit?.let { slope ->
-                DoseSlopes.save(getApplication(), tempTimestamp, slope)
+                // Navigate first, then forget: the final-confirm card is still composed while this
+                // runs, so emptying the draft before the destination changes would flash blank values.
+                suggestion?.slopeMgDlPerUnit?.let { slope ->
+                    DoseSlopes.save(getApplication(), tempTimestamp, slope)
+                }
+                onSuccess()
+                clearDraft()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                // The user stays on the screen with the draft intact, and is told why.
+                onError("The entry could not be saved: ${error.message ?: error::class.simpleName}")
+            } finally {
+                isSaving = false
             }
-            onSuccess()
-            clearDraft()
         }
     }
 
@@ -521,8 +547,12 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Applies an edit to any of the six recorded values, returning null when it was accepted or the
-     * reason it was not - so the editor can stay open rather than silently discard a correction.
+     * Applies an edit to any of the six recorded values.
+     *
+     * [onResult] receives null once the row has actually been written, or the reason it was not -
+     * validation and the database write both report through it. The editor used to be closed by the
+     * caller before the write had run, so a failed update was indistinguishable from a successful one
+     * and the row silently kept its old values (AUDIT.md L2).
      */
     fun updateEntry(
         original: DiaryEntity,
@@ -531,8 +561,9 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         glucoseStr: String,
         carbsStr: String,
         bolusStr: String,
-        basisStr: String
-    ): String? {
+        basisStr: String,
+        onResult: (String?) -> Unit
+    ) {
         val timestamp = runCatching {
             LocalDateTime.parse(
                 "${date.trim()} ${time.trim()}",
@@ -541,34 +572,45 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
-        }.getOrNull() ?: return "Date and time must look like 01.11.2026 and 18:20."
+        }.getOrNull() ?: return onResult("Date and time must look like 01.11.2026 and 18:20.")
 
         // The ranges live in EntryLimits so this door and the entry form cannot disagree.
-        val glucose = EntryLimits.glucose(glucoseStr).getOrElse { return it.message ?: "Invalid blood glucose." }
-        val carbs = EntryLimits.carbs(carbsStr).getOrElse { return it.message ?: "Invalid carb units." }
-        val bolus = EntryLimits.bolus(bolusStr).getOrElse { return it.message ?: "Invalid injected units." }
-        val basis = EntryLimits.basis(basisStr).getOrElse { return it.message ?: "Invalid basis." }
+        val glucose = EntryLimits.glucose(glucoseStr)
+            .getOrElse { return onResult(it.message ?: "Invalid blood glucose.") }
+        val carbs = EntryLimits.carbs(carbsStr)
+            .getOrElse { return onResult(it.message ?: "Invalid carb units.") }
+        val bolus = EntryLimits.bolus(bolusStr)
+            .getOrElse { return onResult(it.message ?: "Invalid injected units.") }
+        val basis = EntryLimits.basis(basisStr)
+            .getOrElse { return onResult(it.message ?: "Invalid basis.") }
 
         val mealChanged = timestamp != original.timestamp || glucose != original.glucose ||
             carbs.toFloat() != original.carbs || basis != original.basis
 
         viewModelScope.launch {
-            diaryDao.updateEntry(
-                original.copy(
-                    timestamp = timestamp,
-                    glucose = glucose,
-                    carbs = carbs.toFloat(),
-                    bolus = bolus,
-                    basis = basis,
-                    // The suggestion was made for the meal as it was. Once the meal itself changes it
-                    // no longer describes this entry, so it is dropped rather than left to mislead.
-                    suggestedBolus = if (mealChanged) null else original.suggestedBolus,
-                    predictedGlucose = if (mealChanged) null else original.predictedGlucose
+            try {
+                diaryDao.updateEntry(
+                    original.copy(
+                        timestamp = timestamp,
+                        glucose = glucose,
+                        carbs = carbs.toFloat(),
+                        bolus = bolus,
+                        basis = basis,
+                        // The suggestion was made for the meal as it was. Once the meal itself changes
+                        // it no longer describes this entry, so it is dropped rather than left to
+                        // mislead.
+                        suggestedBolus = if (mealChanged) null else original.suggestedBolus,
+                        predictedGlucose = if (mealChanged) null else original.predictedGlucose
+                    )
                 )
-            )
-            dataVersion = DataVersion.bump(getApplication())
+                dataVersion = DataVersion.bump(getApplication())
+                onResult(null)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Exception) {
+                onResult("The change could not be saved: ${error.message ?: error::class.simpleName}")
+            }
         }
-        return null
     }
 
     /**
