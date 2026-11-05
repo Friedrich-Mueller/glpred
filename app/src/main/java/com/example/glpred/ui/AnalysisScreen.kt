@@ -130,7 +130,11 @@ private fun countsLine(analysis: ModelVsHuman): String = buildString {
     if (analysis.labelledMeals != analysis.mealsWithSuggestion) {
         append(" · ${analysis.labelledMeals} with a 4 h value")
     }
-    analysis.validationErrorMgDl?.let { append(" · average miss ${it.roundToInt()} mg/dL") }
+    // Named for what it is: the leave-one-out error, not the distance from target that the
+    // benchmark card below reports. Two "miss" numbers on one screen read as one quantity.
+    analysis.validationErrorMgDl?.let {
+        append(" · validation error ${it.roundToInt()} mg/dL (leave-one-out)")
+    }
 }
 
 @Composable

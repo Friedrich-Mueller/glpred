@@ -12,6 +12,7 @@ import com.example.glpred.data.DataVersion
 import com.example.glpred.data.DiaryCsv
 import com.example.glpred.data.DiaryDatabase
 import com.example.glpred.data.DiaryEntity
+import com.example.glpred.data.TrainedModelEntity
 import com.example.glpred.prediction.DiaryEntryInput
 import com.example.glpred.prediction.DoseAdvisor
 import com.example.glpred.prediction.DoseRecommendation
@@ -97,7 +98,40 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
                 trainedAt = stored.trainedAt,
                 restoredAtStartup = true
             )
+            restoreValidation(stored)
         }
+    }
+
+    /**
+     * Recomputes the leave-one-out error of a model read back from storage.
+     *
+     * The figure is not stored with the model: `model_table` predates it, and adding a column would
+     * bump `diary.db`'s version, which runs the destructive migration and deletes the hand-entered
+     * diary (AUDIT.md H2). Without this the review screen said "not validated yet" while the
+     * Analysis screen computed and showed the very number (AUDIT.md M9).
+     *
+     * Guarded on the diary version: on a stale model a fresh leave-one-out describes a refit on
+     * today's rows, not the model that answered, and quoting that would be worse than quoting
+     * nothing. Uses the lambda the fit was made with, so the figure matches what training reported.
+     */
+    private suspend fun restoreValidation(stored: TrainedModelEntity) {
+        val app = getApplication<Application>()
+        if (DataVersion.current(app) != DataVersion.trainedVersion(app)) return
+
+        val loo = withContext(Dispatchers.IO) {
+            runCatching {
+                val samples = TrainingSamples.build(
+                    diaryDao.getAllEntriesList(),
+                    CgmSeries.from(cgmDao.getAllReadings())
+                )
+                LeaveOneOut.rmse4h(samples, stored.lambda)
+            }.getOrNull()
+        } ?: return
+
+        // A retrain may have landed while this ran; its own figure wins.
+        val restored = trainingResult as? TrainingResult.Trained ?: return
+        if (restored.looRmse4h != null) return
+        trainingResult = restored.copy(looRmse4h = loo.rmse, looFolds4h = loo.folds)
     }
 
     val allEntries: StateFlow<List<DiaryEntity>> = diaryDao.getAllEntries()
@@ -465,11 +499,12 @@ class DiaryViewModel(application: Application) : AndroidViewModel(application) {
         get() {
             val trained = trainingResult as? TrainingResult.Trained ?: return null
             val validation = trained.looRmse4h
+            // Plain language: the leave-one-out number is this model's accuracy, stated as a
+            // distance. "Typical miss on meals it did not see" said the same thing in ML shorthand.
             return if (validation != null) {
-                "Model: ${trained.samples4h} samples - typical miss " +
-                    "${validation.roundToInt()} mg/dL on meals it did not see"
+                "Model accuracy within ${validation.roundToInt()} mg/dL (${trained.samples4h} meals)"
             } else {
-                "Model: ${trained.samples4h} samples - accuracy not validated yet"
+                "Model accuracy not validated yet (${trained.samples4h} meals)"
             }
         }
 
