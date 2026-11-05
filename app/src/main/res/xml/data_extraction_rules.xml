@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Everything this app stores is one person's medical history: diary.db (meals, injected doses, the
+  trained model) and cgm.db (liberated sensor telemetry). None of it belongs in a cloud backup or on
+  another device through a transfer, so every domain is excluded on both paths.
+
+  Whole domains rather than individual files, because SQLite keeps its data in `diary.db` alongside
+  `-wal` and `-shm` companions, and a path-level rule would silently cover only the first of the three.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

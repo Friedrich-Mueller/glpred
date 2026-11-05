@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Both databases hold one person's glucose and insulin history, so nothing here may leave the
+         device through a backup or a device transfer. allowBackup covers the pre-Android-12 path;
+         dataExtractionRules covers 12 and later, where a device transfer can still happen with
+         backup disabled (AUDIT.md M5). -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
