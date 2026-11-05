@@ -217,6 +217,16 @@ not about backup.
 
 *Fix:* `allowBackup="false"`, or backup rules that exclude both databases.
 
+**Status 05.11.2026 - FIXED AND VERIFIED.** `allowBackup="false"`, plus
+`android:dataExtractionRules="@xml/data_extraction_rules"` for Android 12 and later, where a
+device-to-device transfer can still happen with backup disabled, and
+`android:fullBackupContent="@xml/backup_rules"` for the pre-12 path that this minSdk can still
+reach. Both rule files exclude every domain (`root`, `database`, `sharedpref`, `file`,
+`external`) rather than naming `diary.db` / `cgm.db`, because SQLite keeps `-wal` and `-shm`
+companions that a path rule would leave behind. Verified in the merged debug manifest
+(`processDebugMainManifest`), and `lintDebug` is back to its 0 errors / 29 warnings baseline -
+the `DataExtractionRules` warning is gone because the attribute it asked for now exists.
+
 ### M6 — Double-tapping "Confirm & Save Entry" can insert two meals — INSPECTION (not reproduced)
 
 `ui/FinalConfirmScreen.kt:103-115` calls `DiaryViewModel.confirmAndSaveEntry` (`:339-363`): there is no
@@ -238,6 +248,18 @@ The same pattern appears in `EnterDataScreen` and `FinalConfirmScreen`.
 
 *Fix:* `verticalScroll` on the content column, or — cleaner — a fixed bottom action bar outside
 the scrolling region, since the `Spacer(weight(1f))` at `:211` fights a scroll modifier.
+
+**Status 05.11.2026 - FIXED AND VERIFIED on a short viewport.** `EnterDataScreen` and
+`FinalConfirmScreen` scroll. `ConfirmDataScreen` was restructured so the cards live in a
+`weight(1f)` + `verticalScroll` column and `Continue` / `Edit Entry` sit outside it, which keeps
+them pinned without the `Spacer(weight(1f))` that a scroll modifier would have broken.
+
+Measured on a deliberately short viewport (`adb shell wm size 1080x1600`, then reset): `Review
+Entry` was **absent from the UI dump** until the entry form was swiped up, then present at
+y 1406-1459 and tappable. On the review screen `Continue` measured `[467,1280][614,1333]`
+**both before and after** a content swipe - the buttons do not move while the cards scroll - and
+the `Your entry` heading left the view, which is the scroll actually happening. The tall
+1080x2400 render is unchanged, so the screenshots stand.
 
 ### M8 — An abandoned draft pre-fills the next entry — **REPRODUCED**
 
@@ -397,8 +419,8 @@ Blockers first. Each item is a separate approval.
 6. ~~**M4** — `try/finally` around the in-flight flags in `validateAndStartReview`,
    `refreshAnalysis` and the history mapping.~~ **DONE 05.11.2026** — plus `isTraining`, and the
    restore-time accuracy that closes M9.
-7. **M5** — `allowBackup="false"`, or backup rules excluding both databases.
-8. **M7** — scrollable content or a fixed bottom action bar on the three form screens.
+7. ~~**M5** — `allowBackup="false"`, or backup rules excluding both databases.~~ **DONE 05.11.2026**
+8. ~~**M7** — scrollable content or a fixed bottom action bar on the three form screens.~~ **DONE 05.11.2026**
 9. **M6** — save-once guard. **L2** — return a result from `updateEntry` and report a failed
    write.
 10. **L1** and **L3** — release logging and a launcher icon, as part of H1.

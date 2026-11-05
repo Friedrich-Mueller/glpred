@@ -627,6 +627,13 @@ The audit committed nothing; the fixes below are the only source changes it caus
   which sat beside the benchmark's "41 mg/dL from 90" and read as the same quantity; it now says
   "validation error 37 mg/dL (leave-one-out)", and the review line says "accuracy within 37 mg/dL
   (65 meals)" instead of "typical miss on meals it did not see".
-- Still open from the audit: H1 (release config), H2 (destructive migration), M5, M6, M7, L1-L4,
+- **M5 and M7 fixed, same day.** Health data no longer leaves the device: `allowBackup="false"`
+  plus `dataExtractionRules` (Android 12+, where a device transfer can still happen with backup
+  disabled) and `fullBackupContent` (pre-12), both excluding whole domains because SQLite keeps
+  `-wal`/`-shm` companions beside the databases. The three form screens scroll; the review screen
+  keeps its actions pinned by moving the cards into a `weight(1f)` scrolling column. Verified on a
+  forced 1080x1600 viewport: `Review Entry` was unreachable until the form scrolled, and `Continue`
+  kept identical bounds across a content swipe. Lint back to 0 errors / 29 warnings.
+- Still open from the audit: H1 (release config), H2 (destructive migration), M6, L1-L4,
   and every runtime path never exercised - CSV import, retrain, History edit/delete, CSV export, the
   Analysis screen, rotation, process death, small-screen layout. No `androidTest` source set exists.
