@@ -100,7 +100,7 @@ the model's predictions become more accurate than the user's would have been.
 <table>
   <tr>
     <td align="center" width="33%"><img src="images/main.png" width="230" alt="Main menu with New Entry, History, Fetch Data and Train Model and Model Performance Analysis buttons, plus a status line reporting the trained model"><br><sub><b>Main menu</b><br>Record a meal, import and train, look back, or read the evidence</sub></td>
-    <td align="center" width="33%"><img src="images/enter-data.png" width="230" alt="Enter data screen with date, time, blood glucose, carbohydrates and long-acting insulin fields"><br><sub><b>Record a meal</b><br>No short-acting dose yet, that is decided next</sub></td>
+    <td align="center" width="33%"><img src="images/enter-data.png" width="230" alt="Enter data screen with date, time, blood glucose, carbohydrates and long-acting insulin fields"><br><sub><b>Record a meal</b><br>Enter meal data. No short-acting dose yet, that is decided next</sub></td>
     <td align="center" width="33%"><img src="images/review.png" width="230" alt="Review screen: the entry as labelled values, then either a suggested dose in large type with its predicted glucose, or an amber warning that no dose reaches the range; below that the model's accuracy and the disclaimer, and a field for the dose actually injected"><br><sub><b>Review and prediction</b><br>The suggestion, its error, and why it may not be trustworthy</sub></td>
   </tr>
   <tr>
